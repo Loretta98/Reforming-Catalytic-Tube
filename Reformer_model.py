@@ -166,7 +166,7 @@ omegas = np.array([])
 
 # Reactor Design Poliana
 
-Nt =                                                                              # Number of tubes
+Nt =   52                                                                           # Number of tubes
 dTube = 0.106                                                                           # Tube diameter [m], 
 Length = 9.36                                                                           # Length of the reactor [m]
 
@@ -175,24 +175,24 @@ RhoC = 2355.2                                                                   
 Dp = 0.0054                                                                             # Catalyst particle diameter [m] 
 
 Twin = 1000 + 273.15                                                                    # Tube wall temperature [K]
-# Input Streams Definition
 
-M_R1 = /3600                                                                   # Input Mass Flowrate [kg/s]
-COR = 0.5                                                                           # Inlet Carbon Oxide Ratio
-FirstGuess_in = np.array([0.2, 0.2, 0.6])
-root = fsolve(GetMolarFraction, x0=FirstGuess_in, args=(SN,COR))
+# Input Streams Definition - Poliana Data
+SC = 2.7                                                                                  # Steam to Carbon Ratio
+M_R1 = 6.6348                                                                           # Input Mass Flowrate [kg/s]
 
-omegain_R1 = np.array([0.00, root[0]*MW[1]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[1]*MW[2]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[2]*MW[3]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), 0.00, 0.00])                   # Inlet mass composition
+# FirstGuess_in = np.array([0.2, 0.2, 0.6])
+# root = fsolve(GetMolarFraction, x0=FirstGuess_in, args=(SN,COR))
+# omegain_R1 = np.array([0.00, root[0]*MW[1]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[1]*MW[2]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[2]*MW[3]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), 0.00, 0.00])                   # Inlet mass composition
 
-Tin_R1 =                                                                            # Inlet Temperature [K]
-Pin_R1 =                                                                            # Inlet Pressure [Bar]
+Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
+Pin_R1 =  21.6                                                                              # Inlet Pressure [Bar]
 
 # Thermodynamic Data
 R = 8.314                                                                          # [kj/kmolK]
 ################################################################################
 # AUXILIARY CALCULATIONS
 Aint = numpy.pi*dTube**2/4                                                          # Tube section [m2]
-m_R1 = M_R1/Nt                                                                      # Mass Flowrate per tube [kg/s tube]
+#m_R1 = M_R1/Nt                                                                      # Mass Flowrate per tube [kg/s tube]
 ################################################################################
 
 # SOLVER FIRST REACTOR
