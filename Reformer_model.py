@@ -8,9 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
-import os
-import win32com.client as win32
-import thermo
 
 
 def GetMolarFraction(x,SN,COR):
@@ -25,11 +22,11 @@ def GetMolarFraction(x,SN,COR):
 
     return Equation
 
-def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTube,Nt,DHvap,TShell,RhoC,Tcs,Pcs,omegas):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
 
     omega = y[0:5]
-    T =     y[6]
-    P =     y[7]
+    T =     y[5]
+    P =     y[6]
 
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
@@ -45,13 +42,13 @@ def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTu
 
     # Estimation of physical properties with ideal mixing rules
 
-    RhoGas = (P*MWmix) / (R*T)  /1000                                           # Gas mass density [kg/m3]
+    RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
 
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
 
     u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]     
 
-    Re = RhoGas * u * dTube / DynVis                                            # Reynolds number []
+
 
     # Mixture massive Specific Heat calculation (NASA correalations)
                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
@@ -63,17 +60,17 @@ def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTu
     a6 = np.array([-9.468e+03,  -1.415e+4  ,    -4.874e+4  ,     -9.501e+2   ,   -3.00e+4   ,   -1.088e+3   ,  -0.092e+4   ])
 
     Cp_mol = R*(a1 + a2*T + a3*T**2 + a4*T**3 + a5*T**4)                                    # Molar specific heat per component [J/molK]
-    Cp = Cp_mol/MW*1000                                                                     # Mass specific heat per component [J/kgK]
+    Cp = Cp_mol[:n_comp]/MW*1000                                                            # Mass specific heat per component [J/kgK]
 
     dHf0 = R*T*(a1*np.log(T) + a2*T + a3*(T**2)/2 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
-    dHf0 = dHf0*1000                                                                        # [J/kmol]
+    dHf0 = dHf0/1000                                                                        # [J/mol]
     Cpmix = np.sum(Cp*omega)                                                                # Mixture specific heat [J/kgK]
 
     # reazioni del SMR      R1                      R2                  R3                           
     DHR = np.array([ dHf0[0]+dHf0[4],               dHf0[1]+dHf0[4],    dHf0[0]+2*dHf0[4]])  # enthalpy of reagents
     DHP = np.array([ dHf0[1]+3*dHf0[3],             dHf0[2]+dHf0[3],    dHf0[2]+4*dHf0[3]])  # enthalpy of products
 
-    DH_reaction = DHR - DHP                                                                  # Enthalpy of the reaction at the gas temperature
+    DH_reaction = DHR - DHP                                                                  # Enthalpy of the reaction at the gas temperature [kJ/mol]
 
     ################################## Heat Transfer Coefficient Calculation ##################################################################################
     
@@ -90,21 +87,21 @@ def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTu
     c = np.array([3.318e-8,    -1.9171e-8,     -2.2242e-8   ,  -6.4933e-8,       4.9551e-8,   -1.3346e-8  ,    -1.1014e-8 ])
 
     k_i     = a + b*T + c*T**2                                                              # thermal conductivity of gas [W/m/K]
-    K_gas   = sum(omega*k_i)                                                                # Thermal conductivity of the mixture as of Wassiljewa equation [W/m/K]
+    K_gas   = sum(omega*k_i[:n_comp])                                                                # Thermal conductivity of the mixture as of Wassiljewa equation [W/m/K]
 
     # Wilke Method for low-pressure gas viscosity   
     mu_i    = A + B*T + C*T**2                                                              # viscosity of gas [micropoise]
     PHI = np.identity(n_comp)                                                               # initialization for PHI calculation
     dynamic_viscosity_array = np.zeros(n_comp)
 
-    for i in range(0,n_comp-2):
-        for j in range(i+1,n_comp-1): 
+    for i in range(0,n_comp-1):
+        for j in range(i+1,n_comp): 
             PHI[i,j] = ( 1+ (mu_i[i]/mu_i[j])**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
             PHI[j,i] = mu_i[j]/mu_i[i]*MW[i]/MW[j] * PHI[i,j]
 
-    for i in range(0,n_comp-1):
+    for i in range(0,n_comp):
         den = 0
-        for j in range(0,n_comp-1): 
+        for j in range(0,n_comp): 
             den += yi[j]*PHI[j,i]
 
         num = yi[i]*mu_i[i]
@@ -113,6 +110,7 @@ def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTu
     DynVis  = sum(dynamic_viscosity_array) * 1e-7                                           # Dynamic viscosity [kg/m/s] 
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
+    Re = RhoGas * u * dTube / DynVis                                            # Reynolds number []
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)+Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     # h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
 
@@ -131,15 +129,15 @@ def TubularReactor(z,y,Epsilon,Dp,Hp,m_gas,Aint,MW,nu,R,DHreact,DynVis,K_gas,dTu
     # Arrhenius     I,       II,        III
     k0 = np.array([1.842e-4, 7.558,     2.193e-5])                                      # pre exponential factor @648 K 
     E_a = np.array([240.1,   67.13,     243.9])                                         # activation energy [kJ/mol]
-    kr = k0*np.exp(-E_a/R/T)
+    kr = k0*np.exp(E_a/R/T)
     # Van't Hoff    CO,     H2,         CH4,    H2O
     K0 = np.array([40.91,   0.0296,     0.1791, 0.4152])                                # pre exponential factor @648,823 K
     DH0 = np.array([-70.65, -82.90,     -38.28,  88.68])                                # adsorption enthalpy [kJ/mol]
-    Kr = K0*np.exp(-DH0*1000/R/T)
+    Kr = K0*np.exp(DH0*1000/R/T)
 
     # Components  [CH4, CO, CO2, H2, H2O, O2, N2]
     DEN = 1 + Kr[0]*Pi[1] + Kr[1]*Pi[3] + Kr[2]*Pi[0] + Kr[3]*Pi[4]/Pi[3]
-    rj = np.array([ (kr[0]/Pi[3]**(2.5)) * (Pi[0]*Pi[4]-(Pi[3]**3)*Pi[1]/Kr[0]) / DEN**2 , (kr[1]/Pi[3]) * (Pi[1]*Pi[4]-Pi[3]*Pi[2]/Kr[1]) / DEN**2 , (kr[2]/Pi[3]**(3.5)) * (Pi[0]*(Pi[4]**2)-(Pi[3]**4)*Pi[2]/Kr[2]) / DEN**2 ]) * RhoC * (1-Epsilon)
+    rj = np.array([ (kr[0]/Pi[3]**(5/2)) * (Pi[0]*Pi[4]-(Pi[3]**3)*Pi[1]/Keq1) / DEN**2 , (kr[1]/Pi[3]) * (Pi[1]*Pi[4]-Pi[3]*Pi[2]/Keq2) / DEN**2 , (kr[2]/Pi[3]**(7/2)) * (Pi[0]*(Pi[4]**2)-(Pi[3]**4)*Pi[2]/Keq3) / DEN**2 ]) * RhoC * (1-Epsilon) *  1000 #
 
 #####################################################################
 # Equations
@@ -160,14 +158,14 @@ nu = np.array([ [-1, 1, 0, 3, -1],
                 [0, -1, 1, 1, -1], 
                 [-1, 0, 1, 4, -2]])  # SMR, WGS, reverse methanation
 
-# Components  [CH4, CO, CO2, H2, H2O, O2, N2]
-MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
+# Components  [CH4, CO, CO2, H2, H2O] O2, N2]
+MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528 ]) #, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
 omegas = np.array([])
 
 # Reactor Design Poliana
 
 Nt =   52                                                                           # Number of tubes
-dTube = 0.106                                                                           # Tube diameter [m], 
+dTube = 0.106                                                                           # Tube diameter [m] 
 Length = 9.36                                                                           # Length of the reactor [m]
 
 Epsilon = 0.519                                                                         # Void Fraction 
@@ -178,7 +176,8 @@ Twin = 1000 + 273.15                                                            
 
 # Input Streams Definition - Poliana Data
 SC = 2.7                                                                                  # Steam to Carbon Ratio
-M_R1 = 6.6348                                                                           # Input Mass Flowrate [kg/s]
+M_R1 = 6.6348                                                                             # Input Mass Flowrate [kg/s]
+f_IN = 0.38                                                                               # input molar flowrate (kmol/s)
 
 # FirstGuess_in = np.array([0.2, 0.2, 0.6])
 # root = fsolve(GetMolarFraction, x0=FirstGuess_in, args=(SN,COR))
@@ -186,6 +185,9 @@ M_R1 = 6.6348                                                                   
 
 Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  21.6                                                                              # Inlet Pressure [Bar]
+omegain_R1 = np.array([0.2115, 0.003, 0.00549, 0.0056, 0.725 ])
+#m_R1 = M_R1
+m_R1 = f_IN*np.sum(np.multiply(omegain_R1,MW))
 
 # Thermodynamic Data
 R = 8.314                                                                          # [kj/kmolK]
@@ -198,17 +200,15 @@ Aint = numpy.pi*dTube**2/4                                                      
 # SOLVER FIRST REACTOR
 
 zspan = np.array([0,Length])
-z = np.linspace(0,Length,401)
-m_vap_0 = 0                                                                            # Steam generated
-y0_R1 = np.concatenate((omegain_R1, [Tin_R1], [m_vap_0], [Pin_R1]))
+z = np.linspace(0,Length,40)
+y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, Hp, m_R1, Aint, MW, nu, R, DHreact, DynVis_R1, K_gas, dTube, Nt, DHvap, TShell, RhoC, Tcs, Pcs, omegas))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC))
 
-omega_R1 = np.zeros( (6,401) )
-omega_R1 = sol.y[0:6]                              # y[6] è il metano che rimane invariato
-T_R1 = sol.y[6] - 273.15
-mvap = sol.y[7]
-P_R1 = sol.y[8]
+omega_R1 = np.zeros( (5,401) )
+omega_R1 = sol.y[0:5]                              
+T_R1 = sol.y[5] - 273.15
+P_R1 = sol.y[6]
 
 ################################################################################
 # REACTOR INLET
@@ -233,14 +233,21 @@ F_f1 = M_R1/MWmix_f1*3600                                                # Inlet
 ################################################################
 # POST CALCULATION
 
-Conv_R1 = ((Ni_R1[2]-Ni_f1[1])/Ni_R1[2])
 
-Res = np.array([Mi_f1[0], T_R1.max(), T_R1[-1]])
 
 # np.savetxt("C:\Users\mbozzini\OneDrive - Politecnico di Milano\Desktop\PhD\Articoli\2024_01_Articolo1\CASO BASE\prova.csv",T_R1,delimiter=",")
-print(Mi_f1)
 # PRODUCTION
 
 
 ################################################################
 # Plotting
+plt.figure(1) 
+plt.xlabel('Reator Lenght [m]'); plt.ylabel('Tg [K]')
+plt.plot(z,T_R1)
+
+plt.figure(2)
+plt.xlabel('Reator Lenght [m]'); plt.ylabel('Mass Flowrate [kg/h]')
+for i in range(0,n_comp):
+    plt.plot(z, Mi_f1[i])
+plt.legend('CH4', 'CO', 'CO2', 'H2', 'H2O', 'O2', 'N2')
+plt.show()
