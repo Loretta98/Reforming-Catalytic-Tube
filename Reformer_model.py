@@ -62,7 +62,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     Cp_mol = R*(a1 + a2*T + a3*T**2 + a4*T**3 + a5*T**4)                                    # Molar specific heat per component [J/molK]
     Cp = Cp_mol[:n_comp]/MW*1000                                                            # Mass specific heat per component [J/kgK]
 
-    dHf0 = R*T*(a1 + a2*T/2 + a3*(T**2)/3 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
+    dHf0 = R*T*(a1*np.log(T) + a2*T + a3*(T**2)/2 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
     dHf0 = dHf0*1000                                                                        # [J/kmol]
     Cpmix = np.sum(Cp*omega)                                                                # Mixture specific heat [J/kgK]
 
@@ -70,7 +70,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     DHR = np.array([ dHf0[0]+dHf0[4],               dHf0[1]+dHf0[4],    dHf0[0]+2*dHf0[4]])  # enthalpy of reagents
     DHP = np.array([ dHf0[1]+3*dHf0[3],             dHf0[2]+dHf0[3],    dHf0[2]+4*dHf0[3]])  # enthalpy of products
 
-    DH_reaction = DHR - DHP                                                                  # Enthalpy of the reaction at the gas temperature [J/kmol]
+    DH_reaction = DHR + DHP                                                                  # Enthalpy of the reaction at the gas temperature [J/mol]
 
     ################################## Heat Transfer Coefficient Calculation ##################################################################################
     
@@ -111,6 +111,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
+
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)+Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     # h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
 
@@ -169,41 +170,39 @@ nu = np.array([ [-1, 1, 0, 3, -1],
 
 # Components  [CH4, CO, CO2, H2, H2O] O2, N2]
 MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528 ]) #, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
-omegas = np.array([])
 
-# Reactor Design Poliana
+# Reactor Design Pantoleontos
 
-Nt =   52                                                                           # Number of tubes
-dTube = 0.106                                                                           # Tube diameter [m] 
-Length = 9.36                                                                           # Length of the reactor [m]
+Nt =   52                                                                                   # Number of tubes
+dTube = 0.1016                                                                              # Tube diameter [m] 
+Length = 12                                                                                 # Length of the reactor [m]
 
-Epsilon = 0.519                                                                         # Void Fraction 
-RhoC = 2355.2                                                                           # Catalyst density [kg/m3] 
-Dp = 0.0054                                                                             # Catalyst particle diameter [m] 
+Epsilon = 0.519                                                                             # Void Fraction 
+RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
+Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
 
-Twin = 1000 + 273.15                                                                    # Tube wall temperature [K]
+Twin = 1000 + 273.15                                                                        # Tube wall temperature [K]
 
-# Input Streams Definition - Poliana Data
-SC = 2.7                                                                                  # Steam to Carbon Ratio
-M_R1 = 6.6348                                                                             # Input Mass Flowrate [kg/s]
-f_IN = 0.38                                                                               # input molar flowrate (kmol/s)
+# Input Streams Definition - Pantoleontos Data                                                                                  # Steam to Carbon Ratio
+f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
-# FirstGuess_in = np.array([0.2, 0.2, 0.6])
-# root = fsolve(GetMolarFraction, x0=FirstGuess_in, args=(SN,COR))
-# omegain_R1 = np.array([0.00, root[0]*MW[1]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[1]*MW[2]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), root[2]*MW[3]/(root[0]*MW[1]+root[1]*MW[2]+root[2]*MW[3]), 0.00, 0.00])                   # Inlet mass composition
+# Components  [CH4, CO, CO2, H2, H2O]
+Tin_R1 =  793.15                                                                            # Inlet Temperature [K]
+Pin_R1 =  25.7                                                                              # Inlet Pressure [Bar]
+x_in_R1 = np.array([0.22056, 0.0, 0.01237, 0.02688, 0.74019 ])                              # Inlet molar composition
 
-Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
-Pin_R1 =  21.6                                                                              # Inlet Pressure [Bar]
-omegain_R1 = np.array([0.2115, 0.003, 0.0549, 0.0056, 0.725 ])
-#m_R1 = M_R1
-m_R1 = f_IN*np.sum(np.multiply(omegain_R1,MW))
+m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
+f_IN_i = x_in_R1*f_IN
+omegain_R1 = np.multiply(f_IN_i,MW) /m_R1                                                              # Inlet mass composition 
+                                                    
+SC = x_in_R1[4] / x_in_R1[0]
 
 # Thermodynamic Data
-R = 8.314                                                                          # [kj/kmolK]
+R = 8.314                                                                               # [J/molK]
 ################################################################################
 # AUXILIARY CALCULATIONS
-Aint = numpy.pi*dTube**2/4                                                          # Tube section [m2]
-#m_R1 = M_R1/Nt                                                                      # Mass Flowrate per tube [kg/s tube]
+Aint = numpy.pi*dTube**2/4                                                              # Tube section [m2]
+#m_R1 = M_R1/Nt                                                                         # Mass Flowrate per tube [kg/s tube]
 ################################################################################
 
 # SOLVER FIRST REACTOR
