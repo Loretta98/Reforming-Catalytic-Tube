@@ -63,7 +63,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     Cp = Cp_mol[:n_comp]/MW*1000                                                            # Mass specific heat per component [J/kgK]
 
     dHf0 = R*T*(a1*np.log(T) + a2*T + a3*(T**2)/2 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
-    dHf0 = dHf0/1000                                                                        # [J/mol]
+    dHf0 = dHf0*1000                                                                        # [J/kmol]
     Cpmix = np.sum(Cp*omega)                                                                # Mixture specific heat [J/kgK]
 
     # reazioni del SMR      R1                      R2                  R3                           
@@ -185,9 +185,11 @@ f_IN = 0.38                                                                     
 
 Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  21.6                                                                              # Inlet Pressure [Bar]
-omegain_R1 = np.array([0.2115, 0.003, 0.00549, 0.0056, 0.725 ])
-#m_R1 = M_R1
-m_R1 = f_IN*np.sum(np.multiply(omegain_R1,MW))
+x_in_R1 = np.array([0.2115, 0.003, 0.00549, 0.0056, 0.725 ])
+
+m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
+f_IN_i = x_in_R1*f_IN
+omegain_R1 = np.multiply(f_IN_i,MW) /m_R1                                                   # Inlet mass composition 
 
 # Thermodynamic Data
 R = 8.314                                                                          # [kj/kmolK]
