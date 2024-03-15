@@ -62,15 +62,15 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     Cp_mol = R*(a1 + a2*T + a3*T**2 + a4*T**3 + a5*T**4)                                    # Molar specific heat per component [J/molK]
     Cp = Cp_mol[:n_comp]/MW*1000                                                            # Mass specific heat per component [J/kgK]
 
-    dHf0 = R*T*(a1*np.log(T) + a2*T + a3*(T**2)/2 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
-    dHf0 = dHf0/1000                                                                        # [J/mol]
+    dHf0 = R*T*(a1 + a2*T/2 + a3*(T**2)/3 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)      # Enthalpy of formation of each compound [J/mol]
+    dHf0 = dHf0*1000                                                                        # [J/kmol]
     Cpmix = np.sum(Cp*omega)                                                                # Mixture specific heat [J/kgK]
 
     # reazioni del SMR      R1                      R2                  R3                           
     DHR = np.array([ dHf0[0]+dHf0[4],               dHf0[1]+dHf0[4],    dHf0[0]+2*dHf0[4]])  # enthalpy of reagents
     DHP = np.array([ dHf0[1]+3*dHf0[3],             dHf0[2]+dHf0[3],    dHf0[2]+4*dHf0[3]])  # enthalpy of products
 
-    DH_reaction = DHR - DHP                                                                  # Enthalpy of the reaction at the gas temperature [kJ/mol]
+    DH_reaction = DHR - DHP                                                                  # Enthalpy of the reaction at the gas temperature [J/kmol]
 
     ################################## Heat Transfer Coefficient Calculation ##################################################################################
     
@@ -90,7 +90,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     K_gas   = sum(omega*k_i[:n_comp])                                                                # Thermal conductivity of the mixture as of Wassiljewa equation [W/m/K]
 
     # Wilke Method for low-pressure gas viscosity   
-    mu_i    = A + B*T + C*T**2                                                              # viscosity of gas [micropoise]
+    mu_i    = A + B*T + C*T**2                                                              # viscosity of gas [micropoise]                                 
     PHI = np.identity(n_comp)                                                               # initialization for PHI calculation
     dynamic_viscosity_array = np.zeros(n_comp)
 
@@ -107,10 +107,10 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
         num = yi[i]*mu_i[i]
         dynamic_viscosity_array[i] = num/den 
     
-    DynVis  = sum(dynamic_viscosity_array) * 1e-7                                           # Dynamic viscosity [kg/m/s] 
+    DynVis  = sum(dynamic_viscosity_array) * 1e-6                                           # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
-    Re = RhoGas * u * dTube / DynVis                                            # Reynolds number []
+    Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)+Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     # h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
 
@@ -155,8 +155,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC):
     Reactor3 = Aint / (m_gas*3600) * MW[2] * np.sum(np.multiply(nu[:, 2], np.multiply(Eta, rj)))
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
-    Reactor6 = - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + np.pi*dTube/(m_gas*Cpmix)*h_t*(Twin - T)
-    Reactor7 = (-150 * (((1-Epsilon)**2)/Epsilon**3) * DynVis*u/Dp**2 -1.75 * ((1-Epsilon)/Epsilon**3) * m_gas*u/(Dp*Aint) )
+    Reactor6 = - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix)) *h_t*(Twin - T)
+    Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
 
@@ -194,7 +194,7 @@ f_IN = 0.38                                                                     
 
 Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  21.6                                                                              # Inlet Pressure [Bar]
-omegain_R1 = np.array([0.2115, 0.003, 0.00549, 0.0056, 0.725 ])
+omegain_R1 = np.array([0.2115, 0.003, 0.0549, 0.0056, 0.725 ])
 #m_R1 = M_R1
 m_R1 = f_IN*np.sum(np.multiply(omegain_R1,MW))
 
