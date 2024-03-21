@@ -22,7 +22,7 @@ def GetMolarFraction(x,SN,COR):
 
     return Equation
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc):
 
     omega = y[0:5]
     T =     y[5]
@@ -100,9 +100,13 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact):
     A_matrix = np.identity(n_comp)
     thermal_conductivity_array = np.zeros(n_comp)
     
+    Gamma = 210*(Tc*MW**3/Pc**4)**(1/6)     # reduced inverse thermal conductivity [W/mK]^-1
+    Tr = T/Tc
+    k = Gamma * (np.exp(0.0464*Tr)-np.exp(-0.2412*Tr))
+    
     for i in range(0,n_comp-1):
         for j in range(i+1,n_comp): 
-            A_matrix[i,j] = ( 1+ (k_i[i]/k_i[j])**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
+            A_matrix[i,j] = ( 1+ (k[i]/k[j])**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
             A_matrix[j,i] = k_i[j]/k_i[i]*MW[i]/MW[j] * A_matrix[i,j]
 
     for i in range(0,n_comp):
@@ -195,7 +199,8 @@ nu = np.array([ [-1, 1, 0, 3, -1],
 
 # Components  [CH4, CO, CO2, H2, H2O] O2, N2]
 MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528 ]) #, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
-
+Tc = np.array([-82.6, -140.3, 31.2, -240, 374]) + 273.15            # Critical Temperatures [K]
+Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical Pressures [bar]
 # Reactor Design Pantoleontos
 
 Nt =   52                                                                                   # Number of tubes
@@ -241,7 +246,7 @@ zspan = np.array([0,Length])
 z = np.linspace(0,Length,40)
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc))
 
 omega_R1 = np.zeros( (5,401) )
 omega_R1 = sol.y[0:5]                              
