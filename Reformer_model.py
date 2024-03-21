@@ -95,12 +95,28 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact):
     b = np.array([1.4028e-4,    8.2713e-5,      1.0174e-4      ,  4.5918e-4,     4.7093e-5,    8.6157e-5   ,   7.593e-5   ])
     c = np.array([3.318e-8,    -1.9171e-8,     -2.2242e-8   ,  -6.4933e-8,       4.9551e-8,   -1.3346e-8  ,    -1.1014e-8 ])
 
+    # Wassiljewa equation for low-pressure gas viscosity with Mason and Saxena modification 
     k_i     = a + b*T + c*T**2                                                                      # thermal conductivity of gas [W/m/K]
-    K_gas   = sum(yi*k_i[:n_comp])                                                                 # Thermal conductivity of the mixture as of Wassiljewa equation [W/m/K]
+    A_matrix = np.identity(n_comp)
+    thermal_conductivity_array = np.zeros(n_comp)
+    
+    for i in range(0,n_comp-1):
+        for j in range(i+1,n_comp): 
+            A_matrix[i,j] = ( 1+ (k_i[i]/k_i[j])**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
+            A_matrix[j,i] = k_i[j]/k_i[i]*MW[i]/MW[j] * A_matrix[i,j]
+
+    for i in range(0,n_comp):
+        den = 0
+        for j in range(0,n_comp): 
+            den += yi[j]*A_matrix[j,i]
+
+        num = yi[i]*k_i[i]
+        thermal_conductivity_array[i] = num/den 
+    K_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
 
     # Wilke Method for low-pressure gas viscosity   
-    mu_i    = (A + B*T + C*T**2)*1e-6                                                              # viscosity of gas [micropoise]
-    PHI = np.identity(n_comp)                                                               # initialization for PHI calculation
+    mu_i    = (A + B*T + C*T**2)*1e-6                                                               # viscosity of gas [micropoise]
+    PHI = np.identity(n_comp)                                                                       # initialization for PHI calculation
     dynamic_viscosity_array = np.zeros(n_comp)
 
     for i in range(0,n_comp-1):
