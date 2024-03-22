@@ -222,7 +222,7 @@ f_IN = 0.00651                                                                  
 # Components  [CH4, CO, CO2, H2, H2O]
 Tin_R1 =  793.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  25.7                                                                              # Inlet Pressure [Bar]
-x_in_R1 = np.array([0.22056, 0.0, 0.01237, 0.02688, 0.74019 ])                              # Inlet molar composition
+x_in_R1 = np.array([0.22155701, 0.0, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
 
 m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
 M_R1 = m_R1
