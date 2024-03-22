@@ -119,9 +119,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
         num = yi[i]*k_i[i]
         thermal_conductivity_array[i] = num/den 
     K_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
-    K_gas = 0.9
+    # K_gas = 0.9
     # Wilke Method for low-pressure gas viscosity   
-    mu_i    = (A + B*T + C*T**2)*1e-6                                                               # viscosity of gas [micropoise]
+    mu_i    = (A + B*T + C*T**2)*1e-7                                                               # viscosity of gas [micropoise]
     PHI = np.identity(n_comp)                                                                       # initialization for PHI calculation
     dynamic_viscosity_array = np.zeros(n_comp)
 
@@ -141,7 +141,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DynVis  = sum(dynamic_viscosity_array)                                            # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
-    Pr = 0.7
+    #Pr = 0.7
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
 
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
