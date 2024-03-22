@@ -22,7 +22,7 @@ def GetMolarFraction(x,SN,COR):
 
     return Equation
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1):
 
     omega = y[0:5]
     T =     y[5]
@@ -45,8 +45,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
 
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
-
-    u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]     
+    u = (F_R1*1000/3600) * R * T / (Aint*Ppa)
+    #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
 
     # Mixture massive Specific Heat calculation (NASA correalations)
                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
@@ -240,19 +240,6 @@ dH_formation_i = np.array([-74.52, -110.53, -393.51, 0, -241.814])              
 DHreact = np.sum(np.multiply(nu,dH_formation_i),axis=1).transpose()                                 # Enthalpy of reaction              [kJ/mol]
 ################################################################################
 
-# SOLVER FIRST REACTOR
-
-zspan = np.array([0,Length])
-z = np.linspace(0,Length,40)
-y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
-
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc))
-
-omega_R1 = np.zeros( (5,401) )
-omega_R1 = sol.y[0:5]                              
-T_R1 = sol.y[5] - 273.15
-P_R1 = sol.y[6]
-
 ################################################################################
 # REACTOR INLET
 Mi_R1 = M_R1 * omegain_R1 * 3600                                            # Mass flowrate per component [kg/h]
@@ -261,6 +248,21 @@ Ntot_R1 = np.sum(Ni_R1)                                             # Molar flow
 zi_R1 = Ni_R1 / Ntot_R1                                             # Inlet Molar fraction to separator
 MWmix_R1 = np.sum(np.multiply(zi_R1,MW))                            # Mixture molecular weight
 F_R1 = M_R1/MWmix_R1*3600                                                # Inlet Molar flowrate [kmol/h]
+
+# SOLVER FIRST REACTOR
+
+zspan = np.array([0,Length])
+z = np.linspace(0,Length,40)
+y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
+
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1))
+
+omega_R1 = np.zeros( (5,401) )
+omega_R1 = sol.y[0:5]                              
+T_R1 = sol.y[5] - 273.15
+P_R1 = sol.y[6]
+
+
 
 ################################################################################
 # REACTOR OUTLET
