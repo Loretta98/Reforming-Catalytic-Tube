@@ -45,7 +45,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
 
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
-    u = (F_R1*1000/3600) * R * T / (Aint*Ppa)
+    u = (F_R1*1000/3600) * R * T / (Aint*Epsilon*Ppa)
     #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
 
     # Mixture massive Specific Heat calculation (NASA correalations)
@@ -102,12 +102,14 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     
     Gamma = 210*(Tc*MW**3/Pc**4)**(1/6)     # reduced inverse thermal conductivity [W/mK]^-1
     Tr = T/Tc
-    k = Gamma * (np.exp(0.0464*Tr)-np.exp(-0.2412*Tr))
+    k = (np.exp(0.0464*Tr)-np.exp(-0.2412*Tr))
     
     for i in range(0,n_comp-1):
         for j in range(i+1,n_comp): 
-            A_matrix[i,j] = ( 1+ (k[i]/k[j])**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
-            A_matrix[j,i] = k_i[j]/k_i[i]*MW[i]/MW[j] * A_matrix[i,j]
+            A_matrix[i,j] = ( 1+ ((Gamma[j]*k[i])/(Gamma[i]*k[j]))**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
+            A_matrix[j,i] = (1 + ((Gamma[i] * k[j]) / (Gamma[j] * k[i])) ** (0.5) * (MW[i] / MW[j]) ** (0.25)) ** 2 / (
+                        8 * (1 + MW[j] / MW[i]) ** (0.5))
+            #A_matrix[j,i] = k_i[j]/k_i[i]*MW[i]/MW[j] * A_matrix[i,j]
 
     for i in range(0,n_comp):
         den = 0
@@ -117,7 +119,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
         num = yi[i]*k_i[i]
         thermal_conductivity_array[i] = num/den 
     K_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
-
+    K_gas = 0.9
     # Wilke Method for low-pressure gas viscosity   
     mu_i    = (A + B*T + C*T**2)*1e-6                                                               # viscosity of gas [micropoise]
     PHI = np.identity(n_comp)                                                                       # initialization for PHI calculation
@@ -139,10 +141,11 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DynVis  = sum(dynamic_viscosity_array)                                            # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
+    Pr = 0.7
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
 
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
-    # h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
+    h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
 
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
@@ -267,22 +270,20 @@ P_R1 = sol.y[6]
 ################################################################################
 # REACTOR OUTLET
 
-Mi_f1 = M_R1 * omega_R1[:,-1] * 3600                                        # Mass flowrate per component [kg/h]
-Ni_f1 = np.divide(Mi_f1, MW)                                        # Molar flowrate per component [kmol/h]
+Mi_f1 = M_R1 * omega_R1 * 3600                                        # Mass flowrate per component [kg/h]
+for i in range(0,n_comp):
+    Ni_f1 = np.divide(Mi_f1[i,:], MW[i])                                        # Molar flowrate per component [kmol/h]
 Ntot_f1 = np.sum(Ni_f1)                                             # Molar flowrate [kmol/h]
 zi_f1 = Ni_f1 / Ntot_f1                                             # Inlet Molar fraction to separator
-MWmix_f1 = np.sum(np.multiply(zi_f1,MW))                            # Mixture molecular weight
-F_f1 = M_R1/MWmix_f1*3600                                                # Inlet Molar flowrate [kmol/h]
+# MWmix_f1 = np.sum(np.multiply(zi_f1,MW))                                # Mixture molecular weight
+#F_f1 = M_R1/MWmix_f1*3600                                                # Outlet Molar flowrate [kmol/h]
 
 
 ################################################################
 # POST CALCULATION
 
-
-
 # np.savetxt("C:\Users\mbozzini\OneDrive - Politecnico di Milano\Desktop\PhD\Articoli\2024_01_Articolo1\CASO BASE\prova.csv",T_R1,delimiter=",")
 # PRODUCTION
-
 
 ################################################################
 # Plotting
@@ -294,5 +295,5 @@ plt.figure(2)
 plt.xlabel('Reator Lenght [m]'); plt.ylabel('Mass Flowrate [kg/h]')
 for i in range(0,n_comp):
     plt.plot(z, Mi_f1[i])
-plt.legend('CH4', 'CO', 'CO2', 'H2', 'H2O', 'O2', 'N2')
+plt.legend(['CH4', 'C0','CO2', 'H2', 'H2O', 'O2', 'N2'])
 plt.show()
