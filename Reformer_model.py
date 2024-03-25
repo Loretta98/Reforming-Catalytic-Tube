@@ -146,7 +146,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
-
+    h_t = 833.77 # Paleontos
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
     
@@ -255,26 +255,27 @@ F_R1 = M_R1/MWmix_R1*3600                                                # Inlet
 # SOLVER FIRST REACTOR
 
 zspan = np.array([0,Length])
-z = np.linspace(0,Length,40)
+N = 100                                             # Discretization
+z = np.linspace(0,Length,N)
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
 sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1))
 
-omega_R1 = np.zeros( (5,401) )
+omega_R1 = np.zeros( (5,N) )
 omega_R1 = sol.y[0:5]                              
-T_R1 = sol.y[5] - 273.15
+T_R1 = sol.y[5]
 P_R1 = sol.y[6]
 
 
 
 ################################################################################
 # REACTOR OUTLET
-
+Ni_f1 = np.zeros((n_comp, N))
 Mi_f1 = M_R1 * omega_R1 * 3600                                        # Mass flowrate per component [kg/h]
 for i in range(0,n_comp):
-    Ni_f1 = np.divide(Mi_f1[i,:], MW[i])                                        # Molar flowrate per component [kmol/h]
+    Ni_f1[i,:] = np.divide(Mi_f1[i,:], MW[i])                                        # Molar flowrate per component [kmol/h]
 Ntot_f1 = np.sum(Ni_f1)                                             # Molar flowrate [kmol/h]
-zi_f1 = Ni_f1 / Ntot_f1                                             # Inlet Molar fraction to separator
+zi_f1 = Ni_f1 / Ntot_f1                                             # outlet Molar fraction to separator
 # MWmix_f1 = np.sum(np.multiply(zi_f1,MW))                                # Mixture molecular weight
 #F_f1 = M_R1/MWmix_f1*3600                                                # Outlet Molar flowrate [kmol/h]
 
@@ -292,8 +293,8 @@ plt.xlabel('Reator Lenght [m]'); plt.ylabel('Tg [K]')
 plt.plot(z,T_R1)
 
 plt.figure(2)
-plt.xlabel('Reator Lenght [m]'); plt.ylabel('Mass Flowrate [kg/h]')
+plt.xlabel('Reator Lenght [m]'); plt.ylabel('Molar Fraction')
 for i in range(0,n_comp):
-    plt.plot(z, Mi_f1[i])
-plt.legend(['CH4', 'C0','CO2', 'H2', 'H2O', 'O2', 'N2'])
+    plt.plot(z, zi_f1[i])
+plt.legend(['CH4', 'C0','CO2', 'H2','H2O'])
 plt.show()
