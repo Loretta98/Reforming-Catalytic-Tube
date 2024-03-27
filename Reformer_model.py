@@ -45,7 +45,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
 
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
-    u = (F_R1*1000/3600) * R * T / (Aint*Epsilon*Ppa)
+    u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
     #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
 
     # Mixture massive Specific Heat calculation (NASA correalations)
