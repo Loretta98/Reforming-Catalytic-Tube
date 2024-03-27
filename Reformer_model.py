@@ -141,11 +141,10 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DynVis  = sum(dynamic_viscosity_array)                                            # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
-    #Pr = 0.7
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
 
     #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
-    h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
+    #h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
     h_t = 833.77    # Paleontos
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
