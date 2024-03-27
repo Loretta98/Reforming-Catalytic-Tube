@@ -32,11 +32,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     # Estimation of physical properties with ideal mixing rules
 
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                            # Gas mass density [kg/m3]
-
     VolFlow_R1 = m_gas / RhoGas                                                     # Volumetric flow per tube [m3/s]
     u = m_gas / (RhoGas*Aint)
     #u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
-    #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
 
     # Mixture massive Specific Heat calculation (NASA correalations)
                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
@@ -205,7 +203,7 @@ Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical P
 
 Nt =   52                                                                                   # Number of tubes
 dTube = 0.106                                                                              # Tube diameter [m] 
-Length = 9.36                                                                                 # Length of the reactor [m]
+Length = 15                                                                                 # Length of the reactor [m]
 
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
@@ -213,12 +211,12 @@ Dp = 0.0054                                                                     
 
 Twin = 1100                                                                       # Tube wall temperature [K]
 # Input Streams Definition                                                                                  # Steam to Carbon Ratio
-f_IN = 0.038                                                                               # input molar flowrate (kmol/s)
+f_IN = 0.38                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
 Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  21.61                                                                              # Inlet Pressure [Bar]
-x_in_R1 = np.array([0.2142, 0.0003, 0.0549, 0.0056, 0.7250 ])                              # Inlet molar composition
+x_in_R1 = np.array([0.21404281, 0.00030006, 0.05491098, 0.00560112, 0.72514503 ])                              # Inlet molar composition
 MWmix = np.sum(x_in_R1*MW)
 w_in = x_in_R1*MW / MWmix
 m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
