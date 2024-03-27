@@ -33,8 +33,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                            # Gas mass density [kg/m3]
     VolFlow_R1 = m_gas / RhoGas                                                     # Volumetric flow per tube [m3/s]
-    u = m_gas / (RhoGas*Aint)
-    #u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
+    #u = m_gas / (RhoGas*Aint)
+    u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
 
     # Mixture massive Specific Heat calculation (NASA correalations)
                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
@@ -134,7 +134,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
-    h_t = 833.77    # Paleontos
+    #h_t = 833.77    # Paleontos
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
     
@@ -211,7 +211,7 @@ Dp = 0.0054                                                                     
 
 Twin = 1100                                                                       # Tube wall temperature [K]
 # Input Streams Definition                                                                                  # Steam to Carbon Ratio
-f_IN = 0.38                                                                               # input molar flowrate (kmol/s)
+f_IN = 0.0038                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
 Tin_R1 =  646.15                                                                            # Inlet Temperature [K]
