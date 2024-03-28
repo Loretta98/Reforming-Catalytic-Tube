@@ -22,7 +22,7 @@ def GetMolarFraction(x,SN,COR):
 
     return Equation
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s):
 
     omega = y[0:5]
     T =     y[5]
@@ -80,7 +80,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Cp = Cp_mol/MW*1000                                             # Mass specific heat per component [J/kgK]
     Cpmix = np.sum(Cp*omega)  
     DH_reaction = DHreact*1000 + np.sum(nu*(c1*(T-298) + c2*(T**2-298**2)/2 + c3*(T**3-298**3)/3 + c4*(T**4-298**4)/4 - c5*(1/T-1/298)),1) #J/mol
-
+    DH_reaction = DH_reaction*1000 #J/kmol
     ################################## Heat Transfer Coefficient Calculation ##################################################################################
     
     # Viscosity coefficients from Yaws
@@ -118,7 +118,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
         num = yi[i]*k_i[i]
         thermal_conductivity_array[i] = num/den 
-    K_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
+    lambda_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
     # K_gas = 0.9
     # Wilke Method for low-pressure gas viscosity   
     mu_i    = (A + B*T + C*T**2)*1e-7                                                               # viscosity of gas [micropoise]
@@ -138,14 +138,22 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
         num = yi[i]*mu_i[i]
         dynamic_viscosity_array[i] = num/den 
     
-    DynVis  = sum(dynamic_viscosity_array)                                            # Dynamic viscosity [kg/m/s]
+    DynVis  = sum(dynamic_viscosity_array)                                                  # Dynamic viscosity [kg/m/s]
 
-    Pr = Cpmix*DynVis/K_gas                                                                 # Prandtl number
+    Pr = Cpmix*DynVis/lambda_gas                                                            # Prandtl number
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
 
     #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
-    #h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
     h_t = 833.77    # Paleontos
+
+    # Overall transfer coefficient in packed beds, Dixon 1996 
+    aw = (1-1.5*(dTube/Dp)**(-1.5))*(lambda_gas/Dp)*(Re**0.59)*Pr**(1/3)                    # wall thermal transfer coefficient [W/m2/K]
+    ars = 0.8171*e_w/(2-e_w)*(T/1000)**3                                                    # [W/m2/K]
+    aru = (0.8171*(T/1000)**3) / (1+(Epsilon/(1-Epsilon))*(1-e_w)/e_w)
+    lamba_er_o = Epsilon*(lambda_gas+0.95*aru*Dp)+0.95*(1-Epsilon)/(2/(3*lambda_s)+1/(10*lambda_gas+ars*Dp))
+    lambda_er = lamba_er_o+0.11*lambda_gas*Re*Pr**(1/3)/(1+46*(Dp/dTube_out)**2)            # effective radial conductivity [W/m/K]
+    Bi = aw*dTube_out/2/lambda_er
+    U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
     
@@ -159,12 +167,6 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Keq2 = np.exp(gamma[1,0]/(T**3)+gamma[1,1]/(T**2)+gamma[1,2]/T + gamma[1,3])
     Keq3 = Keq1*Keq2
 
-    A_K = np.array([4.707e12, 1.142e-2, 5.375e10]) #[bar^2], [-], [bar^2]
-    dH_K = np.array([206.1, -41.15, 164.9]) #kJ/mol
-    K = A_K*np.exp(-(dH_K*1000)/R*(1/T-1/298))
-    # Keq1 = K[0]
-    # Keq2 = K[1]
-    # Keq3 = K[2]
     # Arrhenius     I,       II,        III
     Tr_a = 648                                                                          # K 
     Tr_b = 823                                                                          # K 
@@ -194,7 +196,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor3 = Aint / (m_gas*3600) * MW[2] * np.sum(np.multiply(nu[:, 2], np.multiply(Eta, rj)))
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
-    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix)) *h_t*(Twin - T)
+    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix))*U*(Twin - T)
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
@@ -214,12 +216,15 @@ Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical P
 
 Nt =   52                                                                                   # Number of tubes
 dTube = 0.1016                                                                              # Tube diameter [m] 
+dTube_out = 0.1322                                                                          # Tube outlet diameter [m]
 Length = 12                                                                                 # Length of the reactor [m]
 
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
 Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
 
+e_w = 0.8                                                                                   # emissivity of tube 
+lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/I]
 Twin = 1100.40                                                                         # Tube wall temperature [K]
 # Input Streams Definition - Pantoleontos Data                                                                                  # Steam to Carbon Ratio
 f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
@@ -260,11 +265,11 @@ F_R1 = m_R1/MWmix_R1*3600                                                # Inlet
 # SOLVER FIRST REACTOR
 
 zspan = np.array([0,Length])
-N = 40                                             # Discretization
+N = 100                                             # Discretization
 z = np.linspace(0,Length,N)
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s))
 
 wi_out = np.zeros( (5,N) )
 wi_out = sol.y[0:5]                              
