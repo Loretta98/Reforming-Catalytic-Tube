@@ -11,7 +11,7 @@ from scipy.optimize import fsolve
 
 
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w,sigma):
 
     omega = y[0:5]
     T =     y[5]
@@ -132,7 +132,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     #Pr = 0.7
     Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
 
-    #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
+    h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
+    
     h_t =  1463.9   # Convective coefficient tube side [W/m2/K] from Poliana's code
     #h_t = 833.77    # Paleontos
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
@@ -183,7 +184,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor3 = Aint / (m_gas*3600) * MW[2] * np.sum(np.multiply(nu[:, 2], np.multiply(Eta, rj)))
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
-    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix)) *h_t*(Twin - T)
+    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix)) *h_t*(Twin - T) + (dTube*np.pi/(m_gas*Cpmix))*e_w*sigma*(Twin**4)
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
@@ -208,7 +209,8 @@ Length = 15                                                                     
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
 Dp = 0.0054                                                                                 # Catalyst particle diameter [m] 
-
+e_w = 0.85      # Tuber emissivity 
+sigma = 5.670367*1e-8                                                                         # Stefan Boltzmann constant [W/m2/K4]
 Twin = 1100                                                                       # Tube wall temperature [K]
 # Input Streams Definition                                                                                  # Steam to Carbon Ratio
 f_IN = 0.0038                                                                               # input molar flowrate (kmol/s)
@@ -253,7 +255,7 @@ N = 40                                             # Discretization
 z = np.linspace(0,Length,N)
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, sigma))
 
 wi_out = np.zeros( (5,N) )
 wi_out = sol.y[0:5]                              
