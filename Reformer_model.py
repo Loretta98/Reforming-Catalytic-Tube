@@ -10,18 +10,6 @@ from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
 
 
-def GetMolarFraction(x,SN,COR):
-
-    #x[0:2] # CO, CO2, H2
-
-    Equation = np.zeros(3)
-
-    Equation[0] = SN-(x[2]-x[1])/(x[0]+x[1])
-    Equation[1] = COR-x[1]/(x[0]+x[1])
-    Equation[2] = 1-x[0]-x[1]-x[2]
-
-    return Equation
-
 def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s):
 
     omega = y[0:5]
@@ -141,15 +129,16 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DynVis  = sum(dynamic_viscosity_array)                                                  # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/lambda_gas                                                            # Prandtl number
-    Re = RhoGas * u * dTube / DynVis                                                        # Reynolds number []
+    Re = RhoGas * u * Dp / DynVis                                                        # Reynolds number []
 
     #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
     h_t = 833.77    # Paleontos
 
     # Overall transfer coefficient in packed beds, Dixon 1996 
+    eps = 0.9198/((dTube/Dp)**2) + 0.3414
     aw = (1-1.5*(dTube/Dp)**(-1.5))*(lambda_gas/Dp)*(Re**0.59)*Pr**(1/3)                    # wall thermal transfer coefficient [W/m2/K]
     ars = 0.8171*e_w/(2-e_w)*(T/1000)**3                                                    # [W/m2/K]
-    aru = (0.8171*(T/1000)**3) / (1+(Epsilon/(1-Epsilon))*(1-e_w)/e_w)
+    aru = (0.8171*(T/1000)**3) / (1+(eps/(1-eps))*(1-e_w)/e_w)
     lamba_er_o = Epsilon*(lambda_gas+0.95*aru*Dp)+0.95*(1-Epsilon)/(2/(3*lambda_s)+1/(10*lambda_gas+ars*Dp))
     lambda_er = lamba_er_o+0.11*lambda_gas*Re*Pr**(1/3)/(1+46*(Dp/dTube_out)**2)            # effective radial conductivity [W/m/K]
     Bi = aw*dTube_out/2/lambda_er
@@ -224,9 +213,9 @@ RhoC = 2355.2                                                                   
 Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
 
 e_w = 0.8                                                                                   # emissivity of tube 
-lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/I]
+lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
 Twin = 1100.40                                                                         # Tube wall temperature [K]
-# Input Streams Definition - Pantoleontos Data                                                                                  # Steam to Carbon Ratio
+# Input Streams Definition - Pantoleontos Data                                                                                
 f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
