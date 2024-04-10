@@ -41,31 +41,15 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
     #################################### Furnace Side ##############################################################################################
     m_fi = M_in_furnace * omega_f       # Mass flowrate per tube per component [kg/s]
     ni_f = np.divide(m_fi, MW)          # Molar flowrate per tube per component [kmol/s]
-    nf_tot = np.sum(ni)                 # Molar flowrate [kmol/s]
+    nf_tot = np.sum(ni_f)                 # Molar flowrate [kmol/s]
     y_fi = ni_f / nf_tot                # Molar fraction
     
     P_fi = Pin_f * y_fi                 # Partial Pressure
-    Ppa_f = P_fi * 1E5                  # Pressure [Pa]
+    Ppa_f = Pin_f * 1E5                  # Pressure [Pa]
     MWmix_f = np.sum(y_fi * MW) #Mixture
     # Estimation of physical properties with ideal mixing rules
     RhoGas_f = (Ppa_f * MWmix_f) / (R * Tf) / 1000  # Gas mass density [kg/m3]
     u_f = (nf_tot * 1000) * R * Tf / (Aint_f * Ppa_f)  # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
-
-    # # Mixture massive Specific Heat calculation (NASA correalations)
-    # # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
-    # a1 = np.array([0.748e-2, 2.715, 3.85, 3.337, 3.033, 3.282, 0.029e+2])
-    # a2 = np.array([1.339e-2, 2.063e-3, 4.414e-3, -4.940e-5, 2.176e-3, 1.483e-3, 0.148e-02])
-    # a3 = np.array([-5.732e-6, -9.988e-7, -2.214e-6, 4.994e-7, -1.64e-7, -7.579e-7, -0.0568e-5])
-    # a4 = np.array([1.222e-9, 2.3e-10, 5.234e-10, -1.795e-10, -9.704e-11, 2.094e-10, 0.1e-09])
-    # a5 = np.array([-1.018e-13, -2.036e-14, -4.72e-14, 2.002e-14, 1.682e-14, -2.167e-14, -0.067e-13])
-    # a6 = np.array([-9.468e+03, -1.415e+4, -4.874e+4, -9.501e+2, -3.00e+4, -1.088e+3, -0.092e+4])
-
-    # OCp_mol = R * (a1 + a2 * T + a3 * T ** 2 + a4 * T ** 3 + a5 * T ** 4)                                                   # Molar specific heat per component [J/molK]
-    # OCp = OCp_mol[:n_comp] / MW * 1000                                                                                      # Mass specific heat per component [J/kgK]
-    # dHf0 = R * T * (a1 + a2 * T / 2 + a3 * (T ** 2) / 3 + a4 * (T ** 3) / 4 + a5 * (
-    #             T ** 4) / 5 + a6 / T)                                                                                       # Enthalpy of formation of each compound [J/mol]
-    # dHf0 = dHf0 * 1000                                                                                                      # [J/kmol]
-    # OCpmix = np.sum(OCp * omega)                                                                                            # Mixture specific heat [J/kgK]
 
     ############################## Mixture massive Specific Heat calculation (Shomate Equation)    ################### Enthalpy of the reaction at the gas temperature [J/mol]
 
@@ -185,14 +169,14 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
     dynamic_viscosity_array_f = np.zeros(n_comp_f)
 
     for i in range(0, n_comp_f - 1):
-        for j in range(i + 1, n_comp):
+        for j in range(i + 1, n_comp_f):
             PHI_f[i, j] = (1 + (mu_i[i] / mu_i[j]) ** (0.5) * (MW[j] / MW[i]) ** (0.25)) ** 2 / (
                         8 * (1 + MW[i] / MW[j]) ** (0.5))
             PHI_f[j, i] = mu_i[j] / mu_i[i] * MW[i] / MW[j] * PHI_f[i, j]
 
     for i in range(0, n_comp_f):
         den = 0
-        for j in range(0, n_comp):
+        for j in range(0, n_comp_f):
             den += y_fi[j] * PHI_f[j, i]
 
         num = y_fi[i] * mu_i[i]
@@ -202,6 +186,7 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
    
     Pr_f = Cpmix_f * DynVis_f / lambda_f                                                            # Prandtl number
     Re_f = RhoGas_f * u_f * DHydr / DynVis_f                                                               # Reynolds number []
+    print('Re:',Re_f); print('Pr:', Pr_f)
 
     # h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                       # Convective coefficient tube side [W/m2/K]
     # Overall transfer coefficient in packed beds, Dixon 1996
@@ -221,9 +206,10 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
     Fv = 1
     e_g = 0.3758
     Fe = 1/(1/e_g + 1/e_w-1)
-    hf = h_rad + h_conv
+
     Tavg = (T + Twext) /2
     h_rad = 4*sigma*Fv*Fe*Tavg**3
+    hf = h_rad + h_conv
     U = 1/ ( 1/hf + dTube/lambda_t*np.log(dTube_out/dTube))
     h_env = 0.1                                                                 # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                # Tube Thickness [m]
@@ -265,9 +251,9 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
                                Pi[0] * (Pi[4] ** 2) - (Pi[3] ** 4) * Pi[2] / Keq3) / DEN ** 2]) * RhoC * (
                      1 - Epsilon)  # kmol/m3/h
     if z<Lf: 
-        rj_f = 2*(1-z/Lf)*(F_gas_i_IN/(np.pi*((DHydr**2)/4-(dTube_out**2)/4)*Lf))
+        rj_f = np.array(2*(1-z/Lf)*(nf_tot/(np.pi*((DHydr**2)/4-(dTube_out**2)/4)*Lf)))
     else: 
-        rj_f = 0 
+        rj_f = np.array([0,0,0])
 
     #####################################################################
     # Tube side Equations
@@ -277,23 +263,23 @@ def TubularandFurnaceReactor(z, y, Epsilon, Dp, m_gas, Aint, MW, nu, R, dTube, T
     Reactor4 = Aint / (m_gas * 3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas * 3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
 
-    T6 = - Aint / ((m_gas * 3600) * Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta, rj))) + (np.pi * dTube / (m_gas * Cpmix)) * U * (Tw_ext - T)
+    T6 = - Aint / ((m_gas * 3600) * Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta, rj))) + (np.pi * dTube / (m_gas * Cpmix)) * U * (Twext - T)
 
     P7 = ((-150 * (((1 - Epsilon) ** 2) / (Epsilon ** 3)) * DynVis * u / (Dp ** 2) - (1.75 * ((1 - Epsilon) / (Epsilon ** 3)) * m_gas * u / (Dp * Aint)))) / 1e5
     
     # Furnace side Equations 
-    Reactor9 =  MW[0]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,0],rj_f))
-    Reactor10 = MW[1]/M_in_furnace*np.pi*(Rf**24 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,1],rj_f))
-    Reactor11 = MW[2]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,2],rj_f))
-    Reactor12 = MW[3]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,3],rj_f))
-    Reactor13 = MW[4]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,4],rj_f))
-    Reactor14 = MW[5]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,5],rj_f))
-    Reactor15 = MW[6]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:,6],rj_f))
+    Reactor8 =  MW[0]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 0],rj_f))
+    Reactor9 = MW[1]/M_in_furnace*np.pi*(Rf**24 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 1],rj_f))
+    Reactor10 = MW[2]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 2],rj_f))
+    Reactor11 = MW[3]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 3],rj_f))
+    Reactor12 = MW[4]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 4],rj_f))
+    Reactor13 = MW[5]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 5],rj_f))
+    Reactor14 = MW[6]/M_in_furnace*np.pi*(Rf**2 - (dTube_out**2)/4)*np.sum(np.multiply(nu_c[:, 6],rj_f))
     T15 = ( np.pi*dTube*U*(T-Tf) + np.pi*((DHydr**2)/4-(dTube_out**2)/4)*np.sum(np.multiply(DH_combustion, np.multiply(Eta, rj))) ) / (M_in_furnace*Cpmix_f )
 
     # posso usare fsolve per risolvere l'equazione algebrica per Twext
     #T16 = Twin + U * dTube * np.log(dTube/dTube_out)/lambda_t*(Tf-Twin)
-    return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, T6, P7, Reactor9, Reactor10, Reactor11, Reactor12, Reactor13, Reactor14, Reactor15, T15])
+    return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, T6, P7, Reactor8, Reactor9, Reactor10, Reactor11, Reactor12, Reactor13, Reactor14, T15])
 
 
 ####################################################################################################################################################
@@ -414,11 +400,11 @@ wi_out = sol.y[0:5]
 T_R1 = sol.y[5]
 P_R1 = sol.y[6]
 wi_f_out = np.zeros((7,N))
-wi_out = sol.y[7:14]
+wi_f_out = sol.y[7:14]
 Tf = sol.y[14]
 
 ################################################################################
-# REACTOR OUTLET
+# REACTOR OUTLET - Tube side
 # CH4,          CO,             CO2,            H2,              H2O
 Fi_out = np.zeros((n_comp, N))
 F_tot_out = np.zeros(N);
