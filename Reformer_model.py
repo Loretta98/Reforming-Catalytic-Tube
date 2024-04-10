@@ -15,7 +15,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
-    Tw = 1000.4 + 12.145*z + 0.011*T**z
+    Tw = 1000.4 + 12.145*z + 0.011*z**2
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
     ni = np.divide(mi,MW)                                   # Molar flowrate per tube per component [kmol/s tube]
@@ -258,6 +258,7 @@ F_R1 = m_R1/MWmix_R1*3600                                                # Inlet
 zspan = np.array([0,Length])
 N = 100                                             # Discretization
 z = np.linspace(0,Length,N)
+Tw = 1000.4 + 12.145*z + 0.011*z**2
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
 sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s))
@@ -290,8 +291,9 @@ for j in range(0,N):
 ################################################################
 # Plotting
 fig, (ax1, ax2, ax3) = plt.subplots(1,3)
-ax1.set_xlabel('Reator Lenght [m]'); ax1.set_ylabel('Tg [K]')
-ax1.plot(z,T_R1)
+ax1.set_xlabel('Reator Lenght [m]'); ax1.set_ylabel('T [K]')
+ax1.legend(['Tg','Tf'])
+ax1.plot(z,T_R1,z,Tw)
 
 ax2.set_xlabel('Reator Lenght [m]'); ax2.set_ylabel('Molar Fraction')
 for i in range(0,n_comp):
