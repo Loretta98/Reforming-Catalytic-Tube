@@ -15,7 +15,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
-
+    Tw = 1000.4 + 12.145*z + 0.011*T**z
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
     ni = np.divide(mi,MW)                                   # Molar flowrate per tube per component [kmol/s tube]
@@ -185,7 +185,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor3 = Aint / (m_gas*3600) * MW[2] * np.sum(np.multiply(nu[:, 2], np.multiply(Eta, rj)))
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
-    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix))*U*(Twin - T)
+
+    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
+
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
@@ -214,7 +216,7 @@ Dp = 0.0084                                                                     
 
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
-Twin = 1100.40                                                                         # Tube wall temperature [K]
+Twin = 1000.40                                                                         # Tube wall temperature [K]
 # Input Streams Definition - Pantoleontos Data                                                                                
 f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
