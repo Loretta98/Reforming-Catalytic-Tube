@@ -6,11 +6,12 @@ import numpy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.integrate import solve_ivp, quad
 from scipy.optimize import fsolve
+import sympy as sp
 
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s,e_s,tau):
 
     omega = y[0:5]
     T =     y[5]
@@ -29,32 +30,10 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     MWmix = np.sum(yi*MW)                                   # Mixture
 
     # Estimation of physical properties with ideal mixing rules
-
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
-
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
     u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
     #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
-
-    # Mixture massive Specific Heat calculation (NASA correalations)
-                # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
-    a1 = np.array([0.748e-2,    2.715      ,    3.85       ,     3.337       ,   3.033      ,   3.282       ,  0.029e+2    ])
-    a2 = np.array([1.339e-2,    2.063e-3   ,    4.414e-3   ,     -4.940e-5   ,   2.176e-3   ,   1.483e-3    ,  0.148e-02   ])
-    a3 = np.array([-5.732e-6,   -9.988e-7  ,    -2.214e-6  ,     4.994e-7    ,   -1.64e-7   ,   -7.579e-7   ,  -0.0568e-5  ])
-    a4 = np.array([1.222e-9,    2.3e-10    ,    5.234e-10  ,     -1.795e-10  ,   -9.704e-11 ,   2.094e-10   ,  0.1e-09     ])
-    a5 = np.array([-1.018e-13,  -2.036e-14 ,    -4.72e-14  ,     2.002e-14   ,   1.682e-14  ,   -2.167e-14  ,  -0.067e-13  ])
-    a6 = np.array([-9.468e+03,  -1.415e+4  ,    -4.874e+4  ,     -9.501e+2   ,   -3.00e+4   ,   -1.088e+3   ,  -0.092e+4   ])
-
-    OCp_mol = R*(a1 + a2*T + a3*T**2 + a4*T**3 + a5*T**4)                                       # Molar specific heat per component [J/molK]
-    OCp = OCp_mol[:n_comp]/MW*1000                                                              # Mass specific heat per component [J/kgK]
-    dHf0 = R*T*(a1 + a2*T/2 + a3*(T**2)/3 + a4*(T**3)/4 + a5*(T**4) /5 + a6/T)                # Enthalpy of formation of each compound [J/mol]
-    dHf0 = dHf0*1000                                                                            # [J/kmol]
-    OCpmix = np.sum(OCp*omega)                                                                  # Mixture specific heat [J/kgK]
-
-    # reazioni del SMR      R1                      R2                  R3                           
-    DHR = np.array([ dHf0[0]+dHf0[4],               dHf0[1]+dHf0[4],    dHf0[0]+2*dHf0[4]])  # enthalpy of reagents
-    DHP = np.array([ dHf0[1]+3*dHf0[3],             dHf0[2]+dHf0[3],    dHf0[2]+4*dHf0[3]])  # enthalpy of products
-    DH_reazione = DHR - DHP
     
     # Mixture massive Specific Heat calculation (Shomate Equation)                                                        # Enthalpy of the reaction at the gas temperature [J/mol]
             # CH4,          CO,             CO2,            H2,              H2O    
@@ -177,6 +156,78 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     # Components  [CH4, CO, CO2, H2, H2O, O2, N2]
     DEN = 1 + Kr[0]*Pi[1] + Kr[1]*Pi[3] + Kr[2]*Pi[0] + Kr[3]*Pi[4]/Pi[3]
     rj = np.array([ (kr[0]/Pi[3]**(2.5)) * (Pi[0]*Pi[4]-(Pi[3]**3)*Pi[1]/Keq1) / DEN**2 , (kr[1]/Pi[3]) * (Pi[1]*Pi[4]-Pi[3]*Pi[2]/Keq2) / DEN**2 , (kr[2]/Pi[3]**(3.5)) * (Pi[0]*(Pi[4]**2)-(Pi[3]**4)*Pi[2]/Keq3) / DEN**2 ]) * RhoC * (1-Epsilon)  # kmol/m3/h
+    
+    ########### Particle balance #######################################
+    
+    Pi_p  =np.zeros(n_comp)+0.001
+    DEN_p = 1 + Kr[0]*Pi_p[1] + Kr[1]*Pi_p[3] + Kr[2]*Pi_p[0] + Kr[3]*Pi_p[4]/Pi_p[3]
+    r_p = np.array([ (kr[0]/Pi_p[3]**(2.5)) * (Pi_p[0]*Pi[4]-(Pi_p[3]**3)*Pi_p[1]/Keq1) / DEN_p**2 , (kr[1]/Pi_p[3]) * (Pi_p[1]*Pi_p[4]-Pi_p[3]*Pi_p[2]/Keq2) / DEN_p**2 , (kr[2]/Pi_p[3]**(3.5)) * (Pi_p[0]*(Pi_p[4]**2)-(Pi_p[3]**4)*Pi_p[2]/Keq3) / DEN_p**2 ]) * RhoC # kmol/m3/h 
+
+    Dmi = np.zeros(n_comp); Dij = np.identity(n_comp)
+    k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
+    dip_mom = np.array([])
+    Vb = np.array([8.884,6.557,14.94,1.468,20.36])*1e3                      # liquid molar volume flow @Tb [cm3/mol] from Aspen 
+    Tb = np.array([-161.4, -190.1, -87.26, -253.3, 99.99]) + 273.15         # Normal Boiling point [K] from Aspen
+    # Components  [CH4, CO, CO2, H2, H2O, O2, N2]
+    # Theoretical correlation
+    sigma = np.array([3.758, 3.690, 3.941, 2.827, 2.641])   # characteristic Lennard-Jones lenght in Angstrom 
+    epsi = np.array([148.6, 91.7, 195.2, 59.7, 809.1])      # characteristic Lennard-Jones energy eps/k [K] 
+    # Empirical correlation
+    sigma = 1.18*Vb**(1/3)
+    epsi = 1.15*Tb
+    #delta = np.array(1.94*10e3*dip_mom**2)/Vb/Tb
+    for i in range(0,n_comp): 
+        for j in range(1,n_comp-1): 
+            epsi_ij = (epsi[i]*epsi[j])**0.5
+            T_a = T / epsi_ij
+            #delta_ij = (delta[i]*delta[j])**0.5
+            # if i == 4: 
+            #     omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) + 0.19*delta_ij**2/T_a
+            # else: 
+            #     omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) # diffusion collision integral [-] lennard-jones
+            
+            omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) # diffusion collision integral [-] lennard-jones
+            sigma_ij = (sigma[i] + sigma[j]) / 2
+            M_ij = 2* 1/ ((1/MW[i])+(1/MW[j]))
+            Dij[i,j] =  ( (3.03 - (0.98/M_ij**0.5))/1000 * T**(3/2) ) / (P*M_ij**0.5 *sigma_ij**2*omega_d)  # cm2/s
+            Dij[j,i] = Dij[i,j]
+            Dmi [i] = 1/ np.sum(yi[i]/Dij[i])               # Molecular diffusion coefficient with Blanc's rule 
+    
+    pore_diameter = 130 * 1-8   # pore diameter in cm, average from Xu-Froment II
+    Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
+    Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))            # Effectuve diffusion [cm2/s]
+    
+    # continuity equation within the particle with the 2 indepent components
+    csi = sp.symbols('csi')
+    p_CH4 = sp.Function('p_CH4')
+    eq = -Deff[0]/csi**2 * sp.diff(csi**2 * sp.diff(p_CH4,csi), csi) - 100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,0], r_p))
+    boundary_condition = {p_CH4(csi).diff(csi).subs(csi,0):0, p_CH4(csi).diff(csi,1).subs(csi,1):Pi[0]}
+    #boundary_condition = [(p_CH4.diff(csi).subs(csi,0),0),(p_CH4.subs(csi,1),Pi[0])]
+    P_CH4 = sp.dsolve(eq, p_CH4 ,ics = boundary_condition)
+    
+    csi = sp.symbols('csi')
+    p_CO2 = sp.Function('p_CO2')(csi)
+    eq = -Deff[2]/csi**2 * sp.diff(csi**2 * sp.diff(p_CO2,csi), csi) - 100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,2], r_p))
+    boundary_condition = {p_CO2.diff(csi).subs(csi,0),0, p_CO2.subs(csi,1),Pi[2]}
+    #boundary_condition = [(p_CO2.diff(csi).subs(csi,0),0),(p_CO2.subs(csi,1),Pi[2])]
+    P_CO2 = sp.dsolve(eq, p_CO2 ,ics = boundary_condition)
+
+    Pi_p[0] = P_CH4 
+    Pi_p[2] = P_CO2
+    
+    Pi_p[1] = Pi[1] + (Deff[2]/Deff[1])*(Pi[2]-P_CO2) - (Deff[0]/Deff[1])*(P_CH4-Pi[0])
+    Pi_p[4] = Pi[4] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[4])*(P_CH4-Pi[0])
+    Pi_p[3] = Pi[3] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[3])*(P_CH4-Pi[0])
+    # Continuity equation along the particle 
+    #dpCH4 = (-1/Deff[0]*csi**2)*(100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,0], r_p)))
+    #dpCO2 = (-1/Deff[2]*csi**2)*(100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,2], r_p)))
+    j = 3   
+                                                    # spherical pellets
+    def integ(csi, r_p):
+        return np.array([r_p[0]/csi,r_p[1]/csi,r_p[2]/csi])
+    result = quad(integ,0,1,r_p)
+    
+    Eta = np.array([j*result[0]/rj[0],j*result[1]/rj[1],j*result[2]/rj[2]])      # effectiveness factor = apparent reaction rate / intrinsic reaction rate
 
 #####################################################################
 # Equations
@@ -210,10 +261,12 @@ dTube = 0.1016                                                                  
 dTube_out = 0.1322                                                                          # Tube outlet diameter [m]
 Length = 12                                                                                 # Length of the reactor [m]
 
+# Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
 Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
-
+tau = 3.54                                                                                  # Tortuosity 
+e_s = 0.25                                                                                  # porosity of the catalyst particle [m3void/ m3cat] --> Tacchino
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
 Twin = 1000.40                                                                         # Tube wall temperature [K]
@@ -261,7 +314,7 @@ z = np.linspace(0,Length,N)
 Tw = 1000.4 + 12.145*z + 0.011*z**2
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau))
 
 wi_out = np.zeros( (5,N) )
 wi_out = sol.y[0:5]                              
