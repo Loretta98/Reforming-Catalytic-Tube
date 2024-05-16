@@ -111,7 +111,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Re = RhoGas * u * Dp / DynVis                                                        # Reynolds number []
 
     #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
-    h_t = 833.77    # Paleontos
+    h_t = 833.77    # Pantoleontos
 
     # Overall transfer coefficient in packed beds, Dixon 1996 
     eps = 0.9198/((dTube/Dp)**2) + 0.3414
@@ -165,41 +165,50 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     Dmi = np.zeros(n_comp); Dij = np.identity(n_comp)
     k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
-    dip_mom = np.array([])
+                    # CH4,   CO,    CO2,   H2,  H2O,  O2,  N2
+    dip_mom = np.array([0.0, 0.1, 0.0, 0.0, 1.8]) #, 0.0, 0.0]) # dipole moment debyes
+    #dip_mom_r = 54.46*dip_mom**2*Pc/Tc**2       # reduced dipole moment by Lucas
+    
     Vb = np.array([8.884,6.557,14.94,1.468,20.36])*1e3                      # liquid molar volume flow @Tb [cm3/mol] from Aspen 
     Tb = np.array([-161.4, -190.1, -87.26, -253.3, 99.99]) + 273.15         # Normal Boiling point [K] from Aspen
     # Components  [CH4, CO, CO2, H2, H2O, O2, N2]
+
+    ###### Diffusion coefficient calculation #######
     # Theoretical correlation
     sigma = np.array([3.758, 3.690, 3.941, 2.827, 2.641])   # characteristic Lennard-Jones lenght in Angstrom 
     epsi = np.array([148.6, 91.7, 195.2, 59.7, 809.1])      # characteristic Lennard-Jones energy eps/k [K] 
     # Empirical correlation
-    sigma = 1.18*Vb**(1/3)
-    epsi = 1.15*Tb
-    #delta = np.array(1.94*10e3*dip_mom**2)/Vb/Tb
-    for i in range(0,n_comp): 
-        for j in range(1,n_comp-1): 
+    #sigma = 1.18*Vb**(1/3)
+    #epsi = 1.15*Tb
+    delta = np.array(1.94*10e3*dip_mom**2)/Vb/Tb    # Chapman-Enskog with Brokaw correction with polar gases 
+    sigma = ((1.58*Vb)/(1+1.3*delta**2))**(1/3)     # Chapman-Enskog with Brokaw correction with polar gases 
+    epsi = 1.18*(1+1.3*delta**2)*Tb                 # Chapman-Enskog with Brokaw correction with polar gases
+
+    for i in range(0,n_comp-1):
+        for j in range(i+1,n_comp):
             epsi_ij = (epsi[i]*epsi[j])**0.5
             T_a = T / epsi_ij
-            #delta_ij = (delta[i]*delta[j])**0.5
-            # if i == 4: 
-            #     omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) + 0.19*delta_ij**2/T_a
-            # else: 
-            #     omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) # diffusion collision integral [-] lennard-jones
-            
+            delta_ij = (delta[i]*delta[j])**0.5  
             omega_d = 1.06036/(T_a**0.15610) + 0.193/(np.exp(0.47635*T_a)) + 1.03587/(np.exp(1.52996*T_a)) + 1.76474/(np.exp(3.89411*T_a)) # diffusion collision integral [-] lennard-jones
-            sigma_ij = (sigma[i] + sigma[j]) / 2
+            omega_d = omega_d +0.19*delta_ij**2/T_a                 # Chapman-Enskog with Brokaw correction with polar gases 
+            #sigma_ij = (sigma[i] + sigma[j]) / 2 
+            sigma_ij = (sigma[i]*sigma[j])**0.5
             M_ij = 2* 1/ ((1/MW[i])+(1/MW[j]))
             Dij[i,j] =  ( (3.03 - (0.98/M_ij**0.5))/1000 * T**(3/2) ) / (P*M_ij**0.5 *sigma_ij**2*omega_d)  # cm2/s
             Dij[j,i] = Dij[i,j]
-            Dmi [i] = 1/ np.sum(yi[i]/Dij[i])               # Molecular diffusion coefficient with Blanc's rule 
+
+    for i in range(0,n_comp):
+        for j in range(0,n_comp):
+            den += np.sum(yi[i] / Dij[j,i])
+        Dmi [i] = 1/ den               # Molecular diffusion coefficient for component with Blanc's rule
     
     pore_diameter = 130 * 1-8   # pore diameter in cm, average from Xu-Froment II
     Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
-    Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))            # Effectuve diffusion [cm2/s]
+    Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))            # Effective diffusion [cm2/s]
     
     # continuity equation within the particle with the 2 indepent components
     csi = sp.symbols('csi')
-    p_CH4 = sp.Function('p_CH4')
+    p_CH4 = sp.Function('p_CH4(csi)')
     eq = -Deff[0]/csi**2 * sp.diff(csi**2 * sp.diff(p_CH4,csi), csi) - 100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,0], r_p))
     boundary_condition = {p_CH4(csi).diff(csi).subs(csi,0):0, p_CH4(csi).diff(csi,1).subs(csi,1):Pi[0]}
     #boundary_condition = [(p_CH4.diff(csi).subs(csi,0),0),(p_CH4.subs(csi,1),Pi[0])]
@@ -271,12 +280,17 @@ e_w = 0.8                                                                       
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
 Twin = 1000.40                                                                         # Tube wall temperature [K]
 # Input Streams Definition - Pantoleontos Data                                                                                
-f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
+#f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
 Tin_R1 =  793.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  25.7                                                                              # Inlet Pressure [Bar]
-x_in_R1 = np.array([0.22155701, 0.0, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
+#x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
+Fin = np.array([5.17,0.00001,00.63,.85,17.35])/3600 #kmol/h
+f_IN = np.sum(Fin)
+x_in_R1 = np.zeros(n_comp)
+for i in range(0,n_comp):
+    x_in_R1[i] = Fin[i]/np.sum(Fin)
 MWmix = np.sum(x_in_R1*MW)
 w_in = x_in_R1*MW / MWmix
 m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
