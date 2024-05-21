@@ -6,7 +6,7 @@ import numpy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.integrate import solve_ivp, quad
+from scipy.integrate import solve_ivp, quad, solve_bvp
 from scipy.optimize import fsolve
 import sympy as sp
 
@@ -205,31 +205,33 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     pore_diameter = 130 * 1-8   # pore diameter in cm, average from Xu-Froment II
     Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
     Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))            # Effective diffusion [cm2/s]
-    
-    # continuity equation within the particle with the 2 indepent components
-    csi = sp.symbols('csi')
-    p_CH4 = sp.Function('p_CH4(csi)')
-    eq = -Deff[0]/csi**2 * sp.diff(csi**2 * sp.diff(p_CH4,csi), csi) - 100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,0], r_p))
-    boundary_condition = {p_CH4(csi).diff(csi).subs(csi,0):0, p_CH4(csi).diff(csi,1).subs(csi,1):Pi[0]}
-    #boundary_condition = [(p_CH4.diff(csi).subs(csi,0),0),(p_CH4.subs(csi,1),Pi[0])]
-    P_CH4 = sp.dsolve(eq, p_CH4 ,ics = boundary_condition)
-    
-    csi = sp.symbols('csi')
-    p_CO2 = sp.Function('p_CO2')(csi)
-    eq = -Deff[2]/csi**2 * sp.diff(csi**2 * sp.diff(p_CO2,csi), csi) - 100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,2], r_p))
-    boundary_condition = {p_CO2.diff(csi).subs(csi,0),0, p_CO2.subs(csi,1),Pi[2]}
-    #boundary_condition = [(p_CO2.diff(csi).subs(csi,0),0),(p_CO2.subs(csi,1),Pi[2])]
-    P_CO2 = sp.dsolve(eq, p_CO2 ,ics = boundary_condition)
 
-    Pi_p[0] = P_CH4 
-    Pi_p[2] = P_CO2
+    # Define the boundary conditions
+    # y2(0) = 0; y4(0) = 0 | y1(1) = Pi[0]; y3(1) = Pi[2]
+    def bc(ya, yb, Pi):
+        return np.array([ya[1], ya[3], yb[0] - Pi[0], yb[2] - Pi[2]])
+
+    n_points = 10
+    rspan = np.linspace(0.01,1,n_points)
+    y0 =np.ones(((4,rspan.size)))
+    #sol = solve_bvp(Particle,bc,rspan,y0,Deff,R,T,Dp,RhoC,r_p,nu,Kr,kr,Pi,Pi_p,Keq1,Keq2,Keq3)
+    sol = solve_bvp(
+    lambda x, y: Particle(x, y, Deff, R, T, Dp, RhoC, nu, Kr, kr, Pi, Keq1, Keq2, Keq3,n_points),
+    lambda ya, yb: bc(ya, yb, Pi),
+    rspan, y0)
+
+    if sol.success:
+        print("BVP solver converged!")
+    else:
+        print("BVP solver did not converge!")
+
+    P_CH4 = sol.y[0] 
+    P_CO2 = sol.y[1]
     
     Pi_p[1] = Pi[1] + (Deff[2]/Deff[1])*(Pi[2]-P_CO2) - (Deff[0]/Deff[1])*(P_CH4-Pi[0])
     Pi_p[4] = Pi[4] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[4])*(P_CH4-Pi[0])
     Pi_p[3] = Pi[3] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[3])*(P_CH4-Pi[0])
-    # Continuity equation along the particle 
-    #dpCH4 = (-1/Deff[0]*csi**2)*(100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,0], r_p)))
-    #dpCO2 = (-1/Deff[2]*csi**2)*(100/3600 * R * T * Dp**2 / 4 * np.sum(np.multiply(nu[:,2], r_p)))
+    
     j = 3   
                                                     # spherical pellets
     def integ(csi, r_p):
@@ -251,6 +253,33 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
+
+########### Continuity equation on the particle ################
+def Particle(x, y, Deff, R, T, Dp, RhoC, nu, Kr, kr, Pi, Keq1, Keq2, Keq3,n_points):
+    y1 = y[0]
+    y2 = y[1]
+    y3 = y[2]
+    y4 = y[3]
+
+    Pi_p = np.ones([5,n_points])*0.01
+    Pi_p[0,:] = y1
+    Pi_p[2,:] = y3
+    Pi_p[1,:] = Pi[1] + (Deff[2] / Deff[1]) * (Pi[2] - y3) - (Deff[0] / Deff[1]) * (y1 - Pi[0])
+    Pi_p[4,:] = Pi[4] + (Deff[2] / Deff[2]) * (Pi[2] - y3) + (Deff[0] / Deff[4]) * (y1 - Pi[0])
+    Pi_p[3,:] = Pi[3] + (Deff[2] / Deff[2]) * (Pi[2] - y3) + (Deff[0] / Deff[3]) * (y1 - Pi[0])
+
+    DEN_p = 1 + Kr[0] * Pi_p[1,:] + Kr[1] * Pi_p[3,:] + Kr[2] * Pi_p[0,:] + Kr[3] * Pi_p[4,:] / Pi_p[3,:]
+    r_p = np.array([
+        (kr[0] / Pi_p[3,:] ** 2.5) * (Pi_p[0,:] * Pi[4] - (Pi_p[3,:] ** 3) * Pi_p[1,:] / Keq1) / DEN_p ** 2,
+        (kr[1] / Pi_p[3,:]) * (Pi_p[1,:] * Pi_p[4,:] - Pi_p[3,:] * Pi_p[2,:] / Keq2) / DEN_p ** 2,
+        (kr[2] / Pi_p[3,:] ** 3.5) * (Pi_p[0,:] * (Pi_p[4,:] ** 2) - (Pi_p[3,:] ** 4) * Pi_p[2,:] / Keq3) / DEN_p ** 2
+    ]) * RhoC  # kmol/m3/h
+
+    dy2dx = (2 / x) * y2 + 100 / 3600 / Deff[0] * R * T * Dp ** 2 / 4 * np.sum(nu[:, 0] * r_p)
+    dy4dx = (2 / x) * y4 + 100 / 3600 / Deff[2] * R * T * Dp ** 2 / 4 * np.sum(nu[:, 2] * r_p)
+
+    return np.vstack((y2, dy2dx, y4, dy4dx))
+
 
 #######################################################################
 # INPUT DATA FIRST REACTOR
