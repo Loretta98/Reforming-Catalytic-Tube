@@ -214,19 +214,21 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
     B_c = np.array([0.354836,575612,0.327636])
     C_c = np.multiply(np.array([1.39726,1.59117]),1e2)
-    D_c = np.multiply(np.array([-2.63225,-1.06324]),1e-1)
+    D_c = np.multiply(np.array([-2.63225,-1.06324]),1e1)
 
-    Area_pellet = (Dp/2)**2*np.pi - (c_h/2)**2*np.pi - n_h*(s_h/2)**2*np.pi # total area of the pellet [m2] 
-    Volume_pellet = ((Dp/2)**2*np.pi - (c_h/2)**2*np.pi - n_h*(s_h/2)**2*np.pi)*p_h # total volume of the pellet [m3]
+    Area_pellet = 2/p_h*((Dp*1000)**2-c_h**2-n_h*s_h**2) + 4*((Dp*1000)+c_h+n_h*s_h) # total area of the pellet [mm2]
+    Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
 
     alpha = np.zeros(3)
-    alpha[0] = A_c[0]+B_c[0]* np.arctan((np.ln(lambda_gas*Deff[0])*np.ln(Deff[0]*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
-    alpha[1] = A_c[1]+B_c[1]* Deff[0]
-    alpha[2] = A_c[2]+B_c[2]* np.arctan((np.ln(lambda_gas*Deff[0])*np.ln(Deff[0]*(kr[2]**(0.5)))-C_c[2])/(D_c[2]))
-
+    alpha[0] = A_c[0]+B_c[0]* np.arctan((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
+    alpha[1] = A_c[1]+B_c[1]* Deff[0]*1e-4
+    alpha[2] = A_c[2]+B_c[2]* np.arctan((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
+    specific_area = Area_pellet/Volume_pellet
     Eta = np.ones(3)
     for i in range(0,3): 
-        Eta[i] = alpha[i]*Area_pellet/Volume_pellet
+        Eta[i] = alpha[i]*specific_area
+
+    Eta_list.append(Eta)
 
 #####################################################################
 # Equations
@@ -241,8 +243,6 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
-
-
 
 
 #######################################################################
@@ -267,8 +267,8 @@ Length = 12                                                                     
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
 Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
-p_h = 10e-3                                                                                 # Pellet height [m]
-c_h = 5e-3                                                                                  # central hole diameter [m]
+p_h = 5                                                                                 # Pellet height [m]
+c_h = 0                                                                                  # central hole diameter [m]
 n_h = 0                                                                                     # number of side holes 
 s_h = 0                                                                                     # side holes diameter [m]
 tau = 3.54                                                                                  # Tortuosity 
@@ -276,7 +276,7 @@ e_s = 0.25                                                                      
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
 Twin = 1000.40                                                                         # Tube wall temperature [K]
-
+Eta_list = []
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
@@ -368,10 +368,11 @@ ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
 ax3.set_xlabel('Reactor Lenght [m]'); ax3.set_ylabel('P [bar]')
 ax3.plot(z,P_R1)
 
-# plt.figure(2)
-# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('Mass fraction')
-# for i in range(0,n_comp):
-#     plt.plot(z,wi_out[i])
-# plt.legend(['CH4', 'C0','CO2', 'H2','H2O'])
+plt.figure()
+Eta_list = np.array(Eta_list)
+z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
+plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
+plt.plot(z1,Eta_list[:,0],label=r'$\eta1$'); plt.plot(z1,Eta_list[:,1],label=r'$\eta2$'); plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
+plt.legend()
 plt.show()
 
