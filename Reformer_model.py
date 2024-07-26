@@ -6,7 +6,7 @@ import numpy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.integrate import solve_ivp, quad, solve_bvp
+from scipy.integrate import solve_ivp, quad, solve_bvp, quad_vec
 from scipy.optimize import fsolve
 import sympy as sp
 
@@ -158,10 +158,6 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     rj = np.array([ (kr[0]/Pi[3]**(2.5)) * (Pi[0]*Pi[4]-(Pi[3]**3)*Pi[1]/Keq1) / DEN**2 , (kr[1]/Pi[3]) * (Pi[1]*Pi[4]-Pi[3]*Pi[2]/Keq2) / DEN**2 , (kr[2]/Pi[3]**(3.5)) * (Pi[0]*(Pi[4]**2)-(Pi[3]**4)*Pi[2]/Keq3) / DEN**2 ]) * RhoC * (1-Epsilon)  # kmol/m3/h
     
     ########### Particle balance #######################################
-    
-    Pi_p  =np.zeros(n_comp)+0.001
-    DEN_p = 1 + Kr[0]*Pi_p[1] + Kr[1]*Pi_p[3] + Kr[2]*Pi_p[0] + Kr[3]*Pi_p[4]/Pi_p[3]
-    r_p = np.array([ (kr[0]/Pi_p[3]**(2.5)) * (Pi_p[0]*Pi[4]-(Pi_p[3]**3)*Pi_p[1]/Keq1) / DEN_p**2 , (kr[1]/Pi_p[3]) * (Pi_p[1]*Pi_p[4]-Pi_p[3]*Pi_p[2]/Keq2) / DEN_p**2 , (kr[2]/Pi_p[3]**(3.5)) * (Pi_p[0]*(Pi_p[4]**2)-(Pi_p[3]**4)*Pi_p[2]/Keq3) / DEN_p**2 ]) * RhoC # kmol/m3/h 
 
     Dmi = np.zeros(n_comp); Dij = np.identity(n_comp)
     k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
@@ -211,14 +207,26 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     def bc(ya, yb, Pi):
         return np.array([ya[1], ya[3], yb[0] - Pi[0], yb[2] - Pi[2]])
 
-    n_points = 10
+    n_points = 5
     rspan = np.linspace(0.01,1,n_points)
     y0 =np.ones(((4,rspan.size)))
+    y0[0] = np.log(np.linspace(np.exp(Pi[0]+0.3),np.exp(Pi[0]),n_points)) # Adjust as necessary for your specific problem
+    plt.figure(1)
+    plt.plot(rspan,y0[0])
+    y0[1] = np.gradient(y0[0], rspan)  # First derivative
+    y0[2] = np.log(np.linspace(np.exp(Pi[2]-0.2),np.exp(Pi[2]),n_points))  # Adjust as necessary for your specific problem
+    plt.figure(2)
+    plt.plot(rspan, y0[2])
+    #plt.show()
+    y0[3] = np.gradient(y0[2], rspan)
+    #y0[0,:] = np.linspace(6,Pi[0],n_points)
+    #y0[2,:] = np.linspace(0.47,Pi[2],n_points)
     #sol = solve_bvp(Particle,bc,rspan,y0,Deff,R,T,Dp,RhoC,r_p,nu,Kr,kr,Pi,Pi_p,Keq1,Keq2,Keq3)
+    
     sol = solve_bvp(
     lambda x, y: Particle(x, y, Deff, R, T, Dp, RhoC, nu, Kr, kr, Pi, Keq1, Keq2, Keq3,n_points),
     lambda ya, yb: bc(ya, yb, Pi),
-    rspan, y0)
+    rspan, y0, tol=1e-6, max_nodes=10000)
 
     if sol.success:
         print("BVP solver converged!")
@@ -226,18 +234,24 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
         print("BVP solver did not converge!")
 
     P_CH4 = sol.y[0] 
-    P_CO2 = sol.y[1]
+    P_CO2 = sol.y[2]
+    Pi_p = np.zeros((n_comp,len(P_CH4)))
+    Pi_p[0,:] = P_CH4
+    Pi_p[2,:] = P_CO2
+    Pi_p[1,:] = Pi[1] + (Deff[2]/Deff[1])*(Pi[2]-P_CO2) - (Deff[0]/Deff[1])*(P_CH4-Pi[0])
+    Pi_p[4,:] = Pi[4] + (Deff[2]/Deff[4])*(Pi[2]-P_CO2) + (Deff[0]/Deff[4])*(P_CH4-Pi[0])
+    Pi_p[3,:] = Pi[3] + (Deff[2]/Deff[3])*(Pi[2]-P_CO2) - (3*Deff[0]/Deff[3])*(P_CH4-Pi[0])
     
-    Pi_p[1] = Pi[1] + (Deff[2]/Deff[1])*(Pi[2]-P_CO2) - (Deff[0]/Deff[1])*(P_CH4-Pi[0])
-    Pi_p[4] = Pi[4] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[4])*(P_CH4-Pi[0])
-    Pi_p[3] = Pi[3] + (Deff[2]/Deff[2])*(Pi[2]-P_CO2) + (Deff[0]/Deff[3])*(P_CH4-Pi[0])
+    DEN_p = 1 + Kr[0]*Pi_p[1,:] + Kr[1]*Pi_p[3,:] + Kr[2]*Pi_p[0,:] + Kr[3]*Pi_p[4,:]/Pi_p[3]
+    r_p = np.array([ (kr[0]/Pi_p[3,:]**(2.5)) * (Pi_p[0]*Pi[4]-(Pi_p[3,:]**3)*Pi_p[1,:]/Keq1) / DEN_p**2 , (kr[1]/Pi_p[3,:]) * (Pi_p[1,:]*Pi_p[4,:]-Pi_p[3,:]*Pi_p[2,:]/Keq2) / DEN_p**2 , (kr[2]/Pi_p[3,:]**(3.5)) * (Pi_p[0,:]*(Pi_p[4,:]**2)-(Pi_p[3,:]**4)*Pi_p[2,:]/Keq3) / DEN_p**2 ]) * RhoC # kmol/m3/h
+
+    j = 3                                                   # spherical pellets
     
-    j = 3   
-                                                    # spherical pellets
     def integ(csi, r_p):
         return np.array([r_p[0]/csi,r_p[1]/csi,r_p[2]/csi])
-    result = quad(integ,0,1,r_p)
-    
+    #result = quad(integ,0,1,r_p)
+    result, error = quad_vec(integ, 0.01, 1, args=(r_p.all()))
+    print(result)
     Eta = np.array([j*result[0]/rj[0],j*result[1]/rj[1],j*result[2]/rj[2]])      # effectiveness factor = apparent reaction rate / intrinsic reaction rate
 
 #####################################################################
@@ -254,29 +268,38 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
 
+
+# Components  [CH4, CO, CO2, H2, H2O, O2, N2]
 ########### Continuity equation on the particle ################
 def Particle(x, y, Deff, R, T, Dp, RhoC, nu, Kr, kr, Pi, Keq1, Keq2, Keq3,n_points):
-    y1 = y[0]
-    y2 = y[1]
-    y3 = y[2]
-    y4 = y[3]
+    y1 = y[0]   #partial pressure of CH4 along the particle
+    y2 = y[1]   #first derivative of dpCH4/dcsi
+    y3 = y[2]   #partial pressure of CO2 along the particle
+    y4 = y[3]   #first derivative of dpCO2/dcsi
 
-    Pi_p = np.ones([5,n_points])*0.01
+    Pi_p = np.ones([5,len(y1)])
+    print(len(y1))
     Pi_p[0,:] = y1
     Pi_p[2,:] = y3
     Pi_p[1,:] = Pi[1] + (Deff[2] / Deff[1]) * (Pi[2] - y3) - (Deff[0] / Deff[1]) * (y1 - Pi[0])
-    Pi_p[4,:] = Pi[4] + (Deff[2] / Deff[2]) * (Pi[2] - y3) + (Deff[0] / Deff[4]) * (y1 - Pi[0])
-    Pi_p[3,:] = Pi[3] + (Deff[2] / Deff[2]) * (Pi[2] - y3) + (Deff[0] / Deff[3]) * (y1 - Pi[0])
+    Pi_p[4,:] = Pi[4] + (Deff[2] / Deff[4]) * (Pi[2] - y3) + (Deff[0] / Deff[4]) * (y1 - Pi[0])
+    Pi_p[3,:] = Pi[3] + (Deff[2] / Deff[3]) * (Pi[2] - y3) - (3*Deff[0] / Deff[3]) * (y1 - Pi[0])
 
+    # linear r_p
     DEN_p = 1 + Kr[0] * Pi_p[1,:] + Kr[1] * Pi_p[3,:] + Kr[2] * Pi_p[0,:] + Kr[3] * Pi_p[4,:] / Pi_p[3,:]
     r_p = np.array([
-        (kr[0] / Pi_p[3,:] ** 2.5) * (Pi_p[0,:] * Pi[4] - (Pi_p[3,:] ** 3) * Pi_p[1,:] / Keq1) / DEN_p ** 2,
+        (kr[0] / ((Pi_p[3,:])**2.5)) * (Pi_p[0,:] * Pi_p[4,:] - (Pi_p[3,:] ** 3) * Pi_p[1,:] / Keq1) / DEN_p ** 2,
         (kr[1] / Pi_p[3,:]) * (Pi_p[1,:] * Pi_p[4,:] - Pi_p[3,:] * Pi_p[2,:] / Keq2) / DEN_p ** 2,
         (kr[2] / Pi_p[3,:] ** 3.5) * (Pi_p[0,:] * (Pi_p[4,:] ** 2) - (Pi_p[3,:] ** 4) * Pi_p[2,:] / Keq3) / DEN_p ** 2
     ]) * RhoC  # kmol/m3/h
 
-    dy2dx = (2 / x) * y2 + 100 / 3600 / Deff[0] * R * T * Dp ** 2 / 4 * np.sum(nu[:, 0] * r_p)
-    dy4dx = (2 / x) * y4 + 100 / 3600 / Deff[2] * R * T * Dp ** 2 / 4 * np.sum(nu[:, 2] * r_p)
+    rate = np.zeros((2,len(y1)))
+    for i in range(0,len(y1)):
+        rate[0] = np.sum(nu[:,0]*r_p[:,i])
+        rate[1] = np.sum(nu[:,2] * r_p[:,i])
+
+    dy2dx = (2 / x) * y2 + 100 / 3600 / Deff[0] * R * T * (Dp**2) / 4 * rate[0,:]
+    dy4dx = (2 / x) * y4 + 100 / 3600 / Deff[2] * R * T * (Dp**2) / 4 * rate[1,:]
 
     return np.vstack((y2, dy2dx, y4, dy4dx))
 
