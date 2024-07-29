@@ -16,7 +16,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
-    Tw = 1000.4 + 12.145*z + 0.011*z**2
+    Tw = Twin
+    #Tw = Twin + 12.145*z + 0.011*z**2
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
     ni = np.divide(mi,MW)                                   # Molar flowrate per tube per component [kmol/s tube]
@@ -25,15 +26,15 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     Pi = P*yi                                               # Partial Pressure
     Ppa = P * 1E5                                           # Pressure [Pa]
-    Eta = 1                                               # effectiveness factor (Latham et al., Kumar et al.)
+    Eta = 0.1                                               # effectiveness factor (Latham et al., Kumar et al.)
 
     MWmix = np.sum(yi*MW)                                   # Mixture
 
     # Estimation of physical properties with ideal mixing rules
     RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                           # Gas mass density [kg/m3]
     VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
-    u = (F_R1*1000/3600) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
-    #u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
+    u = (F_R1*1000) * R * T / (Aint*Ppa)                                       # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
+    u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
     
     # Mixture massive Specific Heat calculation (Shomate Equation)                                                        # Enthalpy of the reaction at the gas temperature [J/mol]
             # CH4,          CO,             CO2,            H2,              H2O    
@@ -45,7 +46,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
  
     Cp_mol = c1+c2*T+c3*T**2+c4*T**3+c5/T**2                        # Molar specific heat per component [J/molK]
     Cp = Cp_mol/MW*1000                                             # Mass specific heat per component [J/kgK]
-    Cpmix = np.sum(Cp*omega)  
+    Cpmix = np.sum(Cp*omega)                                        # Mass specific heat [J/kgK]
     DH_reaction = DHreact*1000 + np.sum(nu*(c1*(T-298) + c2*(T**2-298**2)/2 + c3*(T**3-298**3)/3 + c4*(T**4-298**4)/4 - c5*(1/T-1/298)),1) #J/mol
     DH_reaction = DH_reaction*1000 #J/kmol
     ################################## Heat Transfer Coefficient Calculation ##################################################################################
@@ -121,7 +122,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     lamba_er_o = Epsilon*(lambda_gas+0.95*aru*Dp)+0.95*(1-Epsilon)/(2/(3*lambda_s)+1/(10*lambda_gas+ars*Dp))
     lambda_er = lamba_er_o+0.11*lambda_gas*Re*Pr**(1/3)/(1+46*(Dp/dTube_out)**2)            # effective radial conductivity [W/m/K]
     Bi = aw*dTube_out/2/lambda_er
-    U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))
+    U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))                                 # kJ/m2/s/K = kW/m2
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
     
@@ -229,7 +230,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     #     Eta[i] = alpha[i]*specific_area
 
     # Eta_list.append(Eta)
-    
+    u = 833
 #####################################################################
 # Equations
     Reactor1 = Aint / (m_gas*3600) * MW[0] * np.sum(np.multiply(nu[:, 0], np.multiply(Eta, rj)))
@@ -238,9 +239,11 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
 
-    Reactor6 =  - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj))) + (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
+    term_1 = - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj)))
+    term_2 = (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
+    Reactor6 =  term_1 + term_2
 
-    Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis*u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
+    Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis * u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
 
@@ -261,7 +264,7 @@ Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical P
 # Data from FAT experimental setup 
 Nt =   4                                                                                   # Number of tubes
 #dTube = 0.1
-dTube = 0.2                                                                              # Tube diameter [m]
+dTube = 0.14142                                                                              # Tube diameter [m]
 dTube_out = dTube+0.06                                                                          # Tube outlet diameter [m]
 Length = 2                                                                                 # Length of the reactor [m]
 
@@ -277,35 +280,34 @@ tau = 3.54                                                                      
 e_s = 0.25                                                                                  # porosity of the catalyst particle [m3void/ m3cat] --> Tacchino
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
-Twin = 1000.40                                                                         # Tube wall temperature [K]
+Twin = 1000+273.15                                                                         # Tube wall temperature [K]
 Eta_list = []
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
-Tin_R1 =  800+273.15                                                                            # Inlet Temperature [K]
+Tin_R1 =  785+273.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  15                                                                              # Inlet Pressure [Bar]
 #x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
-Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039]) #kmol/h
+Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039])    #kmol/h
 
-f_IN = np.sum(Fin)/4
+f_IN = np.sum(Fin)/Nt                                   # inlet molar flow per tube [kmol/h]
 x_in_R1 = np.zeros(n_comp)
 for i in range(0,n_comp):
-    x_in_R1[i] = Fin[i]/np.sum(Fin)
+    x_in_R1[i] = Fin[i]/np.sum(Fin)                     # inlet molar composition
 MWmix = np.sum(x_in_R1*MW)
 w_in = x_in_R1*MW / MWmix
-m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/h]
-f_IN_i = x_in_R1*f_IN
-omegain_R1 = np.multiply(f_IN_i,MW) /m_R1                                                              # Inlet mass composition 
+m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))/3600             # Inlet mass flow [kg/s]
+f_IN_i = x_in_R1*f_IN                                       # inlet flowrate per tube
+omegain_R1 = w_in                                                              # Inlet mass composition
                                                     
-SC = x_in_R1[4] / x_in_R1[0]
+SC = x_in_R1[4] / x_in_R1[0]        # the steam to carbon was calculated upon the total amount of carbon, not only methane
 
 # Thermodynamic Data
 R = 8.314                                                                               # [J/molK]
 ################################################################################
 # AUXILIARY CALCULATIONS
 Aint = numpy.pi*dTube**2/4                                                              # Tube section [m2]
-#m_R1 = M_R1/Nt                                                                         # Mass Flowrate per tube [kg/s tube]
 # Perry's data 
         # CH4,          CO,             CO2,            H2,              H2O          
 dH_formation_i = np.array([-74.52, -110.53, -393.51, 0, -241.814])                                  # Enthalpy of formation [kJ/mol]       
@@ -319,18 +321,18 @@ Ni_R1 = np.divide(Mi_R1, MW)                                        # Molar flow
 Ntot_R1 = np.sum(Ni_R1)                                             # Molar flowrate [kmol/h]
 zi_R1 = Ni_R1 / Ntot_R1                                             # Inlet Molar fraction to separator
 MWmix_R1 = np.sum(np.multiply(zi_R1,MW))                            # Mixture molecular weight
-F_R1 = m_R1/MWmix_R1                                                # Inlet Molar flowrate [kmol/h]
+F_R1 = m_R1/MWmix_R1                                                # Inlet Molar flowrate [kmol/s]
 
 # SOLVER FIRST REACTOR
 
 zspan = np.array([0,Length])
-N = 30                                             # Discretization
-#z = np.linspace(0,Length,N)
+N = 100                                             # Discretization
+z = np.linspace(0,Length,N)
 # Tw = 1000.4 + 12.145*z + 0.011*z**2
-Tw = 1100+273.15 # K
+Tw = 950+273.15 # K
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, #t_eval=z,
+sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z,
                  args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h))
 
 wi_out = np.zeros( (5,np.size(sol.y[0])) )
@@ -357,8 +359,9 @@ yi = Fi_out/F_tot_out                                                           
 
 ################################################################
 # POST CALCULATION
-Tw = np.ones(np.size(wi_out[0]))*Tw
+Tw = np.ones(np.size(wi_out[0]))*Twin
 z = np.linspace(0,Length,np.size(wi_out[0]))
+#Tw = Twin + 12.145*z + 0.011*z**2
 ################################################################
 # Plotting
 fig, (ax1, ax2, ax3) = plt.subplots(1,3)
