@@ -208,28 +208,28 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))                        # Effective diffusion [cm2/s]
 
  
-    ##### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #########
-    # Catalyst parameters Dp (catalyst diameter); p_h (pellet height); c_h (central hole diameter); n_h (number of side holes); s_h (side holes diameter)
+    # ##### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #########
+    # # Catalyst parameters Dp (catalyst diameter); p_h (pellet height); c_h (central hole diameter); n_h (number of side holes); s_h (side holes diameter)
 
-    A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
-    B_c = np.array([0.354836,575612,0.327636])
-    C_c = np.multiply(np.array([1.39726,1.59117]),1e2)
-    D_c = np.multiply(np.array([-2.63225,-1.06324]),1e1)
+    # A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
+    # B_c = np.array([0.354836,575612,0.327636])
+    # C_c = np.multiply(np.array([1.39726,1.59117]),1e2)
+    # D_c = np.multiply(np.array([-2.63225,-1.06324]),1e1)
 
-    Area_pellet = 2/p_h*((Dp*1000)**2-c_h**2-n_h*s_h**2) + 4*((Dp*1000)+c_h+n_h*s_h) # total area of the pellet [mm2]
-    Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
+    # Area_pellet = 2/p_h*((Dp*1000)**2-c_h**2-n_h*s_h**2) + 4*((Dp*1000)+c_h+n_h*s_h) # total area of the pellet [mm2]
+    # Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
 
-    alpha = np.zeros(3)
-    alpha[0] = A_c[0]+B_c[0]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
-    alpha[1] = A_c[1]+B_c[1]* Deff[0]*1e-4
-    alpha[2] = A_c[2]+B_c[2]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
-    specific_area = Area_pellet/Volume_pellet
-    Eta = np.ones(3)
-    for i in range(0,3): 
-        Eta[i] = alpha[i]*specific_area
+    # alpha = np.zeros(3)
+    # alpha[0] = A_c[0]+B_c[0]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
+    # alpha[1] = A_c[1]+B_c[1]* Deff[0]*1e-4
+    # alpha[2] = A_c[2]+B_c[2]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
+    # specific_area = Area_pellet/Volume_pellet
+    # Eta = np.ones(3)
+    # for i in range(0,3): 
+    #     Eta[i] = alpha[i]*specific_area
 
-    Eta_list.append(Eta)
-
+    # Eta_list.append(Eta)
+    
 #####################################################################
 # Equations
     Reactor1 = Aint / (m_gas*3600) * MW[0] * np.sum(np.multiply(nu[:, 0], np.multiply(Eta, rj)))
@@ -258,10 +258,12 @@ Tc = np.array([-82.6, -140.3, 31.2, -240, 374]) + 273.15            # Critical T
 Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical Pressures [bar]
 # Reactor Design Pantoleontos
 
-Nt =   52                                                                                   # Number of tubes
-dTube = 0.1016                                                                              # Tube diameter [m] 
-dTube_out = 0.1322                                                                          # Tube outlet diameter [m]
-Length = 12                                                                                 # Length of the reactor [m]
+# Data from FAT experimental setup 
+Nt =   4                                                                                   # Number of tubes
+dTube = 0.1
+#dTube = 0.14142                                                                              # Tube diameter [m]
+dTube_out = dTube+0.06                                                                          # Tube outlet diameter [m]
+Length = 2.00                                                                                 # Length of the reactor [m]
 
 # Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
@@ -281,17 +283,18 @@ Eta_list = []
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
-Tin_R1 =  793.15                                                                            # Inlet Temperature [K]
-Pin_R1 =  25.7                                                                              # Inlet Pressure [Bar]
+Tin_R1 =  800+273.15                                                                            # Inlet Temperature [K]
+Pin_R1 =  15                                                                              # Inlet Pressure [Bar]
 #x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
-Fin = np.array([5.17,0.00001,00.63,.85,17.35])/3600 #kmol/h
+Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039]) #kmol/h
+
 f_IN = np.sum(Fin)
 x_in_R1 = np.zeros(n_comp)
 for i in range(0,n_comp):
     x_in_R1[i] = Fin[i]/np.sum(Fin)
 MWmix = np.sum(x_in_R1*MW)
 w_in = x_in_R1*MW / MWmix
-m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/s]
+m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))                                                 # Inlet mass flow [kg/h]
 f_IN_i = x_in_R1*f_IN
 omegain_R1 = np.multiply(f_IN_i,MW) /m_R1                                                              # Inlet mass composition 
                                                     
@@ -316,19 +319,21 @@ Ni_R1 = np.divide(Mi_R1, MW)                                        # Molar flow
 Ntot_R1 = np.sum(Ni_R1)                                             # Molar flowrate [kmol/h]
 zi_R1 = Ni_R1 / Ntot_R1                                             # Inlet Molar fraction to separator
 MWmix_R1 = np.sum(np.multiply(zi_R1,MW))                            # Mixture molecular weight
-F_R1 = m_R1/MWmix_R1*3600                                                # Inlet Molar flowrate [kmol/h]
+F_R1 = m_R1/MWmix_R1                                                # Inlet Molar flowrate [kmol/h]
 
 # SOLVER FIRST REACTOR
 
 zspan = np.array([0,Length])
-N = 100                                             # Discretization
-z = np.linspace(0,Length,N)
-Tw = 1000.4 + 12.145*z + 0.011*z**2
+N = 30                                             # Discretization
+#z = np.linspace(0,Length,N)
+# Tw = 1000.4 + 12.145*z + 0.011*z**2
+Tw = 900+273.15 # K
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
-sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z, args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h))
+sol = solve_ivp(TubularReactor, zspan, y0_R1, #t_eval=z,
+                 args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h))
 
-wi_out = np.zeros( (5,N) )
+wi_out = np.zeros( (5,np.size(sol.y[0])) )
 wi_out = sol.y[0:5]                              
 T_R1 = sol.y[5]
 P_R1 = sol.y[6]
@@ -338,21 +343,22 @@ P_R1 = sol.y[6]
 ################################################################################
 # REACTOR OUTLET
 # CH4,          CO,             CO2,            H2,              H2O
-Fi_out = np.zeros((n_comp,N))
-F_tot_out = np.zeros(N); yi = np.zeros(N)
-Mi_out = m_R1 * wi_out                                        # Mass flowrate per component [kg/s]
+Fi_out = np.zeros((n_comp,np.size(wi_out[0])))
+F_tot_out = np.zeros(np.size(wi_out[0])); yi = np.zeros(np.size(wi_out[0]))
+Mi_out = m_R1 * wi_out                                        # Mass flowrate per component [kg/h]
 for i in range(0,n_comp):
     Fi_out[i] = Mi_out[i,:]/MW[i]                                     # Molar flowrate per component [kmol/h]
-for j in range(0,N):
-    F_tot_out[j] = np.sum(Fi_out[:,j])                                             # Molar flowrate [kmol/h]
-    yi = Fi_out/F_tot_out                                           # outlet Molar fraction to separator
+for j in range(0,np.size(wi_out[0])):
+    F_tot_out[j] = np.sum(Fi_out[:,j])                                              # Molar flowrate [kmol/h]
+yi = Fi_out/F_tot_out                                                           # outlet Molar fraction to separator
 # MWmix_f1 = np.sum(np.multiply(zi_f1,MW))                                # Mixture molecular weight
 #F_f1 = M_R1/MWmix_f1*3600                                                # Outlet Molar flowrate [kmol/h]
 
 
 ################################################################
 # POST CALCULATION
-
+Tw = np.ones(np.size(wi_out[0]))*Tw
+z = np.linspace(0,Length,np.size(wi_out[0]))
 ################################################################
 # Plotting
 fig, (ax1, ax2, ax3) = plt.subplots(1,3)
@@ -368,11 +374,11 @@ ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
 ax3.set_xlabel('Reactor Lenght [m]'); ax3.set_ylabel('P [bar]')
 ax3.plot(z,P_R1)
 
-plt.figure()
-Eta_list = np.array(Eta_list)
-z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
-plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
-plt.plot(z1,Eta_list[:,0],label=r'$\eta1$'); plt.plot(z1,Eta_list[:,1],label=r'$\eta2$'); plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
-plt.legend()
-plt.show()
+# plt.figure()
+# Eta_list = np.array(Eta_list)
+# z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
+# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
+# plt.plot(z1,Eta_list[:,0],label=r'$\eta1$'); plt.plot(z1,Eta_list[:,1],label=r'$\eta2$'); plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
+# plt.legend()
+# plt.show()
 
