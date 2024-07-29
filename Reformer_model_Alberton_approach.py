@@ -220,9 +220,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
 
     alpha = np.zeros(3)
-    alpha[0] = A_c[0]+B_c[0]* np.arctan((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
+    alpha[0] = A_c[0]+B_c[0]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
     alpha[1] = A_c[1]+B_c[1]* Deff[0]*1e-4
-    alpha[2] = A_c[2]+B_c[2]* np.arctan((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
+    alpha[2] = A_c[2]+B_c[2]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
     specific_area = Area_pellet/Volume_pellet
     Eta = np.ones(3)
     for i in range(0,3): 
