@@ -25,7 +25,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     Pi = P*yi                                               # Partial Pressure
     Ppa = P * 1E5                                           # Pressure [Pa]
-    Eta = 0.1                                               # effectiveness factor (Latham et al., Kumar et al.)
+    Eta = 1                                               # effectiveness factor (Latham et al., Kumar et al.)
 
     MWmix = np.sum(yi*MW)                                   # Mixture
 
@@ -260,10 +260,10 @@ Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical P
 
 # Data from FAT experimental setup 
 Nt =   4                                                                                   # Number of tubes
-dTube = 0.1
-#dTube = 0.14142                                                                              # Tube diameter [m]
+#dTube = 0.1
+dTube = 0.2                                                                              # Tube diameter [m]
 dTube_out = dTube+0.06                                                                          # Tube outlet diameter [m]
-Length = 2.00                                                                                 # Length of the reactor [m]
+Length = 2                                                                                 # Length of the reactor [m]
 
 # Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
@@ -288,7 +288,7 @@ Pin_R1 =  15                                                                    
 #x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
 Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039]) #kmol/h
 
-f_IN = np.sum(Fin)
+f_IN = np.sum(Fin)/4
 x_in_R1 = np.zeros(n_comp)
 for i in range(0,n_comp):
     x_in_R1[i] = Fin[i]/np.sum(Fin)
@@ -327,7 +327,7 @@ zspan = np.array([0,Length])
 N = 30                                             # Discretization
 #z = np.linspace(0,Length,N)
 # Tw = 1000.4 + 12.145*z + 0.011*z**2
-Tw = 900+273.15 # K
+Tw = 1100+273.15 # K
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
 sol = solve_ivp(TubularReactor, zspan, y0_R1, #t_eval=z,
@@ -380,5 +380,5 @@ ax3.plot(z,P_R1)
 # plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
 # plt.plot(z1,Eta_list[:,0],label=r'$\eta1$'); plt.plot(z1,Eta_list[:,1],label=r'$\eta2$'); plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
 # plt.legend()
-# plt.show()
+plt.show()
 
