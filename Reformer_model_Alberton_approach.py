@@ -16,8 +16,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
-    Tw = Twin
+    #Tw = Twin
     #Tw = Twin + 12.145*z + 0.011*z**2
+    Tw = 150*np.log(2*z+1)+Twin
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
     ni = np.divide(mi,MW)                                   # Molar flowrate per tube per component [kmol/s tube]
@@ -230,7 +231,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     #     Eta[i] = alpha[i]*specific_area
 
     # Eta_list.append(Eta)
-    u = 833
+    #U = 833
 #####################################################################
 # Equations
     Reactor1 = Aint / (m_gas*3600) * MW[0] * np.sum(np.multiply(nu[:, 0], np.multiply(Eta, rj)))
@@ -239,7 +240,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Reactor4 = Aint / (m_gas*3600) * MW[3] * np.sum(np.multiply(nu[:, 3], np.multiply(Eta, rj)))
     Reactor5 = Aint / (m_gas*3600) * MW[4] * np.sum(np.multiply(nu[:, 4], np.multiply(Eta, rj)))
 
-    term_1 = - Aint/ ((m_gas*3600)*Cpmix) * np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj)))
+    term_0 = np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj)))
+    term_1 = - Aint/ ((m_gas*3600)*Cpmix) * term_0
     term_2 = (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
     Reactor6 =  term_1 + term_2
 
@@ -280,7 +282,7 @@ tau = 3.54                                                                      
 e_s = 0.25                                                                                  # porosity of the catalyst particle [m3void/ m3cat] --> Tacchino
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
-Twin = 1000+273.15                                                                         # Tube wall temperature [K]
+Twin = 850+273.15                                                                         # Tube wall temperature [K]
 Eta_list = []
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
@@ -329,7 +331,7 @@ zspan = np.array([0,Length])
 N = 100                                             # Discretization
 z = np.linspace(0,Length,N)
 # Tw = 1000.4 + 12.145*z + 0.011*z**2
-Tw = 950+273.15 # K
+Tw = 9500+273.15 # K
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
 sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z,
@@ -359,9 +361,10 @@ yi = Fi_out/F_tot_out                                                           
 
 ################################################################
 # POST CALCULATION
-Tw = np.ones(np.size(wi_out[0]))*Twin
+#Tw = np.ones(np.size(wi_out[0]))*Twin
 z = np.linspace(0,Length,np.size(wi_out[0]))
 #Tw = Twin + 12.145*z + 0.011*z**2
+Tw = 150*np.log(2*z+1)+Twin
 ################################################################
 # Plotting
 fig, (ax1, ax2, ax3) = plt.subplots(1,3)
