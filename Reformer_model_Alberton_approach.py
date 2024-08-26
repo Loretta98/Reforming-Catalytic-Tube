@@ -16,9 +16,9 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
-    #Tw = Twin
+    Tw = Twin
     #Tw = Twin + 12.145*z + 0.011*z**2
-    Tw = 150*np.log(2*z+1)+Twin
+    #Tw = 150*np.log(2*z+1) + Twin
     # Aux. Calculations
     mi = m_gas*omega                                        # Mass flowrate per tube per component [kg/s tube]
     ni = np.divide(mi,MW)                                   # Molar flowrate per tube per component [kmol/s tube]
@@ -50,8 +50,11 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Cpmix = np.sum(Cp*omega)                                        # Mass specific heat [J/kgK]
     DH_reaction = DHreact*1000 + np.sum(nu*(c1*(T-298) + c2*(T**2-298**2)/2 + c3*(T**3-298**3)/3 + c4*(T**4-298**4)/4 - c5*(1/T-1/298)),1) #J/mol
     DH_reaction = DH_reaction*1000 #J/kmol
-    ################################## Heat Transfer Coefficient Calculation ##################################################################################
-    
+
+    ######################################################################################################
+    ################################## Heat Transfer Coefficient Calculation #############################
+    ######################################################################################################
+   
     # Viscosity coefficients from Yaws
                  # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
     A = np.array([3.844,         35.086,        11.336       ,  27.758,          -36.826,    44.224    ,       42.606   ])
@@ -127,8 +130,10 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     h_env = 0.1                                                                             # Convective coefficient external environment [W/m2/K]
     Thick = 0.01                                                                            # Tube Thickness [m]
     
-##################################################################
-# Kinetic Costant and Rate of reaction (Xu-Froment)
+#####################################################################################################
+########################## Kinetic Costant and Rate of reaction (Xu-Froment)#########################
+#####################################################################################################
+
     # CH4 + H2O -> CO + 3 H2 ; CO + H2O -> CO2 + H2 ; CH4 + 2H2O +> CO2 + 4H2
 
     # Equilibrium constants fitted from Nielsen in [bar]
@@ -143,7 +148,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     k0 = np.array([1.842e-4, 7.558,     2.193e-5])                                      # pre exponential factor @648 K kmol/bar/kgcat/h
     E_a = np.array([240.1,   67.13,     243.9])                                         # activation energy [kJ/mol]
     kr = k0*np.exp(-(E_a*1000)/R*(1/T-1/Tr_a))
-
+    kr_list.append(kr)
     # Van't Hoff    CO,     H2,         CH4,    H2O
     K0_a = np.array([40.91,   0.0296])                                      # pre exponential factor @648 K [1/bar]
     DH0_a = np.array([-70.65, -82.90])                                      # adsorption enthalpy [kJ/mol]
@@ -159,13 +164,11 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DEN = 1 + Kr[0]*Pi[1] + Kr[1]*Pi[3] + Kr[2]*Pi[0] + Kr[3]*Pi[4]/Pi[3]
     rj = np.array([ (kr[0]/Pi[3]**(2.5)) * (Pi[0]*Pi[4]-(Pi[3]**3)*Pi[1]/Keq1) / DEN**2 , (kr[1]/Pi[3]) * (Pi[1]*Pi[4]-Pi[3]*Pi[2]/Keq2) / DEN**2 , (kr[2]/Pi[3]**(3.5)) * (Pi[0]*(Pi[4]**2)-(Pi[3]**4)*Pi[2]/Keq3) / DEN**2 ]) * RhoC * (1-Epsilon)  # kmol/m3/h
     
-    ########### Particle balance #######################################
-    
-    Pi_p  =np.zeros(n_comp)+0.001
-    DEN_p = 1 + Kr[0]*Pi_p[1] + Kr[1]*Pi_p[3] + Kr[2]*Pi_p[0] + Kr[3]*Pi_p[4]/Pi_p[3]
-    r_p = np.array([ (kr[0]/Pi_p[3]**(2.5)) * (Pi_p[0]*Pi[4]-(Pi_p[3]**3)*Pi_p[1]/Keq1) / DEN_p**2 , (kr[1]/Pi_p[3]) * (Pi_p[1]*Pi_p[4]-Pi_p[3]*Pi_p[2]/Keq2) / DEN_p**2 , (kr[2]/Pi_p[3]**(3.5)) * (Pi_p[0]*(Pi_p[4]**2)-(Pi_p[3]**4)*Pi_p[2]/Keq3) / DEN_p**2 ]) * RhoC # kmol/m3/h 
+    ###########################################################################################################
+    ######################################## Particle balance #################################################
+    ###########################################################################################################
 
-    Dmi = np.zeros(n_comp); Dij = np.identity(n_comp)
+    Dmi = np.zeros(n_comp); Dij = np.identity(n_comp); Dki = np.zeros((n_comp))
     k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
                     # CH4,   CO,    CO2,   H2,  H2O,  O2,  N2
     dip_mom = np.array([0.0, 0.1, 0.0, 0.0, 1.8]) #, 0.0, 0.0]) # dipole moment debyes
@@ -175,7 +178,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Tb = np.array([-161.4, -190.1, -87.26, -253.3, 99.99]) + 273.15         # Normal Boiling point [K] from Aspen
     # Components  [CH4, CO, CO2, H2, H2O, O2, N2]
 
-    ###### Diffusion coefficient calculation #######
+    ################### Diffusion coefficient calculation #########################################
+
     # Theoretical correlation
     # Components  [CH4, CO, CO2, H2, H2O]
     sigma = np.array([3.758, 3.690, 3.941, 2.827, 2.641])   # characteristic Lennard-Jones lenght in Angstrom 
@@ -183,7 +187,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     # Empirical correlation
     #sigma = 1.18*Vb**(1/3)
     #epsi = 1.15*Tb
-    delta = np.array(1.94*10e3*dip_mom**2)/Vb/Tb    # Chapman-Enskog with Brokaw correction with polar gases 
+    delta = np.array(1.94*1e3*dip_mom**2)/Vb/Tb    # Chapman-Enskog with Brokaw correction with polar gases 
     sigma = ((1.58*Vb)/(1+1.3*delta**2))**(1/3)     # Chapman-Enskog with Brokaw correction with polar gases 
     epsi = 1.18*(1+1.3*delta**2)*Tb                 # Chapman-Enskog with Brokaw correction with polar gases
 
@@ -200,38 +204,46 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
             Dij[i,j] =  ( (3.03 - (0.98/M_ij**0.5))/1000 * T**(3/2) ) / (P*M_ij**0.5 *sigma_ij**2*omega_d)  # cm2/s
             Dij[j,i] = Dij[i,j]
 
+    pore_radius = 1e-8  # pore radius in cm
+
     for i in range(0,n_comp):
         for j in range(0,n_comp):
-            den += np.sum(yi[i] / Dij[j,i])
-        Dmi [i] = 1/ den               # Molecular diffusion coefficient for component with Blanc's rule
-    
-    pore_diameter = 130 * 1-8   # pore diameter in cm, average from Xu-Froment II
+            den += np.sum(yi[j] / Dij[i,j])
+        Dmi [i] = (1-yi[i])/ den               # Molecular diffusion coefficient for component with Wilke's Equation
+        Dki [i] = 9700 * pore_radius * (T / MW[i]) # Knudsen diffusion [cm2/s]
+
+    pore_diameter = 130 * 1e-8   # pore diameter in cm, average from Xu-Froment II
     Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
     Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))                        # Effective diffusion [cm2/s]
+    Deff_CH4 = Deff[0]*1E-4             # Effective diffusion [m2/s]
+    Deff_list.append(Deff_CH4)
 
  
-    # ##### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #########
-    # # Catalyst parameters Dp (catalyst diameter); p_h (pellet height); c_h (central hole diameter); n_h (number of side holes); s_h (side holes diameter)
+    ##### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #########
+    # Catalyst parameters Dp (catalyst diameter); p_h (pellet height); c_h (central hole diameter); n_h (number of side holes); s_h (side holes diameter)
 
-    # A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
-    # B_c = np.array([0.354836,575612,0.327636])
-    # C_c = np.multiply(np.array([1.39726,1.59117]),1e2)
-    # D_c = np.multiply(np.array([-2.63225,-1.06324]),1e1)
+    A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
+    B_c = np.array([0.354836,575612,0.327636])
+    C_c = np.multiply(np.array([1.39726,1.59117]),1e2)
+    D_c = np.multiply(np.array([-2.63225,-1.06324]),1e1)
 
-    # Area_pellet = 2/p_h*((Dp*1000)**2-c_h**2-n_h*s_h**2) + 4*((Dp*1000)+c_h+n_h*s_h) # total area of the pellet [mm2]
-    # Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
+    Area_pellet = 2/p_h*((Dp*1000)**2-c_h**2-n_h*s_h**2)+4*((Dp*1000)+c_h+n_h*s_h) # total area of the pellet [mm2]
+    Volume_pellet =  (Dp*1000)**2 - c_h**2 - n_h*s_h**2 # total volume of the pellet [mm3]
 
-    # alpha = np.zeros(3)
-    # alpha[0] = A_c[0]+B_c[0]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
-    # alpha[1] = A_c[1]+B_c[1]* Deff[0]*1e-4
-    # alpha[2] = A_c[2]+B_c[2]* np.exp((np.log(lambda_gas*Deff[0]*1e-4)*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
-    # specific_area = Area_pellet/Volume_pellet
-    # Eta = np.ones(3)
-    # for i in range(0,3): 
-    #     Eta[i] = alpha[i]*specific_area
+    alpha = np.zeros(3)
+    alpha[0] = A_c[0]+B_c[0]* np.arctan((np.log(lambda_gas/(Deff[0]*1e-4))*np.log(Deff[0]*1e-4*(kr[0]**(0.5)))-C_c[0])/(D_c[0]))
+    alpha[1] = A_c[1]+B_c[1]*Deff[0]*1e-4
+    alpha[2] = A_c[2]+B_c[2]* np.arctan((np.log(lambda_gas/(Deff[0]*1e-4))*np.log(Deff[0]*1e-4*(kr[2]**(0.5)))-C_c[1])/(D_c[1]))
+    specific_area = Area_pellet/Volume_pellet
 
-    # Eta_list.append(Eta)
-    #U = 833
+    Eta = np.ones(3)
+
+    for i in range(0,3):
+        Eta[i] = alpha[i]*specific_area
+
+    Eta_list.append(Eta)
+
+    #Eta = 0.1
 #####################################################################
 # Equations
     Reactor1 = Aint / (m_gas*3600) * MW[0] * np.sum(np.multiply(nu[:, 0], np.multiply(Eta, rj)))
@@ -272,10 +284,11 @@ Length = 2                                                                      
 
 # Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
-RhoC = 2355.2                                                                               # Catalyst density [kg/m3] 
-Dp = 0.0084                                                                                 # Catalyst particle diameter [m] 
-p_h = 5                                                                                 # Pellet height [m]
-c_h = 0                                                                                  # central hole diameter [m]
+RhoC = 2355.2                                                                               # Catalyst density [kg/m3]
+#RhoC = 1000 # [kg/m3]
+Dp = 0.015                                                                                 # Catalyst particle diameter [m]
+p_h = 15                                                                                 # Pellet height [mm]
+c_h = 5                                                                                  # central hole diameter [mm]
 n_h = 0                                                                                     # number of side holes 
 s_h = 0                                                                                     # side holes diameter [m]
 tau = 3.54                                                                                  # Tortuosity 
@@ -284,6 +297,8 @@ e_w = 0.8                                                                       
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
 Twin = 850+273.15                                                                         # Tube wall temperature [K]
 Eta_list = []
+kr_list = []
+Deff_list = []
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
@@ -380,11 +395,27 @@ ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
 ax3.set_xlabel('Reactor Lenght [m]'); ax3.set_ylabel('P [bar]')
 ax3.plot(z,P_R1)
 
+plt.figure()
+Eta_list = np.array(Eta_list)
+z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
+plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
+plt.plot(z1,Eta_list[:,0],label=r'$\eta1$');
+plt.plot(z1,Eta_list[:,1],label=r'$\eta2$');
+plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
+plt.legend()
+
+plt.figure()
+Deff_list = np.array(Deff_list)
+z1 = np.linspace(0,Length,np.size(Deff_list))
+plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion coefficient [m2/s]')
+plt.plot(z1,Deff_list,label='CH4')
+plt.legend()
+
 # plt.figure()
-# Eta_list = np.array(Eta_list)
-# z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
-# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
-# plt.plot(z1,Eta_list[:,0],label=r'$\eta1$'); plt.plot(z1,Eta_list[:,1],label=r'$\eta2$'); plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
+# kr_list = np.array(kr_list)
+# z1 = np.linspace(0,Length,np.size(kr_list[:,0]))
+# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('Rate of equation')
+# plt.plot(z1,kr_list[:,0],label='kr1'); plt.plot(z1,kr_list[:,1],label='kr2'); plt.plot(z1,kr_list[:,2],label='kr3')
 # plt.legend()
 plt.show()
 
