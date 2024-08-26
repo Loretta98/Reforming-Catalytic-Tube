@@ -16,39 +16,42 @@ import sympy as sp
 
 
 # Define the boundary value problem in a wrapper function
-def solve_heat_bvp(h_t, r_in, delta_z, T_g, epsilon_w, epsilon_f, sigma, h_f, T_f, s_w):
+def solve_heat_bvp(y_guess,h_t, rin, T, epsilon_w, epsilon_f, sigma, h_f, Tf, sw,mesh_size):
     # Define the boundary conditions with additional parameters
-    def bc(Ta, Tb):
-        T_in_w = Ta[0]  # Temperature at r = r_in (only first value from Ta)
-        T_ext_w = Tb[0]  # Temperature at r = r_in + s_w (only first value from Tb)
+    # Define the system of ODEs
+    kw = 28.5 # tube thermal conductivity [W/mK]
+    h_t = 210
+    a1 = h_f/kw
+    a2 = sigma/kw*epsilon_f
+    b1 = h_t/kw
+    b2 = sigma/kw*epsilon_w
 
-        # Evaluate Q_cond_in and Q_cond_ext only at the boundary points.
-        Q_conv_wg = h_t * 2 * np.pi * r_in * delta_z * (T_in_w - T_g)
-        Q_rad_wg = sigma * 2 * np.pi * r_in * delta_z * epsilon_w * (T_in_w ** 4)
-        Q_cond_in = Q_conv_wg + Q_rad_wg
+    #print(h_t)
 
-        Q_conv_fw = h_f * 2 * np.pi * (r_in + s_w) * delta_z * (T_f - T_ext_w)
-        Q_rad_fw = sigma * 2 * np.pi * (r_in + s_w) * delta_z * epsilon_f * (T_f ** 4)
-        Q_cond_ext = Q_conv_fw + Q_rad_fw
-
-        return np.array([T_in_w - T_g, T_ext_w - T_f])  # Example: Dirichlet BCs for temperatures
+    # Define the boundary conditions
+    def bc(ya, yb):
+        # Boundary conditions at r = rin and r = rin + sw
+        bc1 = ya[1] - (-b1 * ya[0] + b1 * T - b2 * ya[0] ** 4)
+        bc2 = yb[1] - (-a1 * Tf + a1 * yb[0] - a2 * Tf ** 4)
+        return np.array([bc1, bc2])
 
     # Define the heat equation with additional parameters
-    def heat_eqn(r, T):
-        return np.vstack([T[1], -(T[1] / r)])  # dT/dr and d²T/dr² = 0
+    def odes(r, y):
+        # y[0] = x, y[1] = dx/dr
+        dxdr = y[1]
+        d2xdr2 = -y[1] / r  # From the original equation
+        return np.vstack((dxdr, d2xdr2))
 
-    # Create a radial mesh and initial guess for temperature distribution
-    r_mesh = np.linspace(r_in, r_in + s_w, 50)
-    T_guess = np.zeros((2, r_mesh.size))  # Initial guess (constant temperature)
+    # Set up the initial guess for the solution (linear guess)
+    r = np.linspace(rin, rin + sw, mesh_size)
 
-    # Solve the BVP
-    solution = solve_bvp(heat_eqn, bc, r_mesh, T_guess)
+    # Solve the boundary value problem
+    solution = solve_bvp(odes, bc, r, y_guess,tol=1e-3,max_nodes=1000)
 
     # Check if the solution converged
-    if solution.success:
-        print("BVP solution converged")
-    else:
+    if solution.success==0:
         print("BVP solution did not converge")
+        print(solution)
 
     # Return the solution for plotting
     return solution
@@ -59,12 +62,13 @@ def solve_heat_bvp(h_t, r_in, delta_z, T_g, epsilon_w, epsilon_f, sigma, h_f, T_
 #####################################################################################################################################
 
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s,e_s,tau,p_h,c_h,n_h,s_h,s_w):
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s,e_s,tau,p_h,c_h,n_h,s_h,s_w,mesh_size):
 
     omega = y[0:5]
     T =     y[5]
     P =     y[6]
     Tw = Twin
+
     #Tw = Twin + 12.145*z + 0.011*z**2
     #Tw = 150*np.log(2*z+1) + Twin
     # Aux. Calculations
@@ -170,7 +174,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     h_t = lambda_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                            # Convective coefficient tube side [W/m2/K] from Pantoleontos 2012
     #h_f = lambda_f/Dh*(0.023*(Re_f)**0.8*Pr_f**0.3)                                                     # Convenctive coefficient furnace side [W/m2/K] (Dittus-Boeleter's equation)
     h_f = 833.77    # guess 
-
+    h_t_list.append(h_t)
+    
     # Overall transfer coefficient in packed beds, Dixon 1996 
     eps = 0.9198/((dTube/Dp)**2) + 0.3414
     aw = (1-1.5*(dTube/Dp)**(-1.5))*(lambda_gas/Dp)*(Re**0.59)*Pr**(1/3)                    # wall thermal transfer coefficient [W/m2/K]
@@ -220,6 +225,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     ###########################################################################################################
     ######################################## Particle balance #################################################
     ###########################################################################################################
+
     Dmi = np.zeros(n_comp); Dij = np.identity(n_comp); Dki = np.zeros((n_comp))
     k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
                     # CH4,   CO,    CO2,   H2,  H2O,  O2,  N2
@@ -300,21 +306,36 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     # Create a radial mesh and initial guess for temperature distribution
     r_in = dTube/2                                                                  # tube internal radius [m]
-    delta_z =  np.linspace(0,Length,N)                                                                     # lenght of each control volume element [m]
     epsilon_w = 0.85            # wall emissivity 
     epsilon_f = 0.3758          # furnace emissivity
-    T_f = Twin
+    T_f = 850+273.15            # Furnace Temperature
+    #T_f = Tw
     s_k_boltz = 5.66961e-8      #Stefan Boltzmann constant  [Jm2/K/s]
+
+
     # Solve the BVP
+    r = np.linspace(dTube / 2, dTube / 2 + s_w, mesh_size)
+    #y_guess_1 = np.array(Guess_list[-1])
+    #y_guess_1 = []
+    y_guess = np.zeros((2, r.size))
+    if z == 0:
+        y_guess = np.zeros((2, r.size))  # y_guess[0] = x, y_guess[1] = dx/dr
+    else:
+        y_guess = np.array(Guess_list[-1])
     # Solve the BVP using the wrapper function
-    solution = solve_heat_bvp(h_t, r_in, delta_z, T, epsilon_w, epsilon_f, s_k_boltz, h_f, T_f, s_w)
+    solution = solve_heat_bvp(y_guess, h_t, r_in, T, epsilon_w, epsilon_f, s_k_boltz, h_f, T_f, s_w,mesh_size)
 
     # Plot the results
     if solution.success:
         r_sol = solution.x
         T_sol = solution.y[0]
+        dT_sol = solution.y[1]
+        y_guess_1 = np.ones((2,r.size))
+        y_guess_1[0] = T_sol
+        y_guess_1[1] = dT_sol
+        Guess_list.append(y_guess_1)
 
-    Tw = T_sol
+    Tw = T_sol[0]
 
 #################################################################################################################################################
 ################################################################## Equations#####################################################################
@@ -371,10 +392,13 @@ tau = 3.54                                                                      
 e_s = 0.25                                                                                  # porosity of the catalyst particle [m3void/ m3cat] --> Tacchino
 e_w = 0.8                                                                                   # emissivity of tube 
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
-Twin = 850+273.15                                                                         # Tube wall temperature [K]
+Twin = 850+273.15                                                                           # Tube wall temperature [K]
 Eta_list = []
 kr_list = []
 Deff_list = []
+Guess_list = []
+h_t_list = []
+mesh_size = 100
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
@@ -424,8 +448,9 @@ z = np.linspace(0,Length,N)
 # Tw = 1000.4 + 12.145*z + 0.011*z**2
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
+
 sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z,
-                 args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h,s_w))
+                 args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h,s_w,mesh_size))
 
 wi_out = np.zeros( (5,np.size(sol.y[0])) )
 wi_out = sol.y[0:5]                              
@@ -451,10 +476,10 @@ yi = Fi_out/F_tot_out                                                           
 
 ################################################################
 # POST CALCULATION
-#Tw = np.ones(np.size(wi_out[0]))*Twin
+Tw = np.ones(np.size(wi_out[0]))*Twin
 z = np.linspace(0,Length,np.size(wi_out[0]))
 #Tw = Twin + 12.145*z + 0.011*z**2
-Tw = 150*np.log(2*z+1)+Twin
+#Tw = 150*np.log(2*z+1)+Twin
 ################################################################
 # Plotting
 fig, (ax1, ax2, ax3) = plt.subplots(1,3)
@@ -492,5 +517,13 @@ ax3.plot(z,P_R1)
 # plt.xlabel('Reactor Lenght [m]'), plt.ylabel('Rate of equation')
 # plt.plot(z1,kr_list[:,0],label='kr1'); plt.plot(z1,kr_list[:,1],label='kr2'); plt.plot(z1,kr_list[:,2],label='kr3')
 # plt.legend()
+
+plt.figure()
+h_t = np.array(h_t_list)
+z1 = np.linspace(0,Length,np.size(h_t_list))
+plt.xlabel('Reactor Lenght [m]'), plt.ylabel('tube thermal conductivity [W/m/K]')
+plt.plot(z1,h_t)
+plt.legend()
+
 plt.show()
 
