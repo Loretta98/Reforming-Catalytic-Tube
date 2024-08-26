@@ -10,8 +10,56 @@ from scipy.integrate import solve_ivp, quad, solve_bvp
 from scipy.optimize import fsolve
 import sympy as sp
 
+#########################################################################################################################################
+############################################### Radial Temperature along the tube calculation ###########################################
+#########################################################################################################################################
 
-def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s,e_s,tau,p_h,c_h,n_h,s_h):
+
+# Define the boundary value problem in a wrapper function
+def solve_heat_bvp(h_t, r_in, delta_z, T_g, epsilon_w, epsilon_f, sigma, h_f, T_f, s_w):
+    # Define the boundary conditions with additional parameters
+    def bc(Ta, Tb):
+        T_in_w = Ta[0]  # Temperature at r = r_in (only first value from Ta)
+        T_ext_w = Tb[0]  # Temperature at r = r_in + s_w (only first value from Tb)
+
+        # Evaluate Q_cond_in and Q_cond_ext only at the boundary points.
+        Q_conv_wg = h_t * 2 * np.pi * r_in * delta_z * (T_in_w - T_g)
+        Q_rad_wg = sigma * 2 * np.pi * r_in * delta_z * epsilon_w * (T_in_w ** 4)
+        Q_cond_in = Q_conv_wg + Q_rad_wg
+
+        Q_conv_fw = h_f * 2 * np.pi * (r_in + s_w) * delta_z * (T_f - T_ext_w)
+        Q_rad_fw = sigma * 2 * np.pi * (r_in + s_w) * delta_z * epsilon_f * (T_f ** 4)
+        Q_cond_ext = Q_conv_fw + Q_rad_fw
+
+        return np.array([T_in_w - T_g, T_ext_w - T_f])  # Example: Dirichlet BCs for temperatures
+
+    # Define the heat equation with additional parameters
+    def heat_eqn(r, T):
+        return np.vstack([T[1], -(T[1] / r)])  # dT/dr and d²T/dr² = 0
+
+    # Create a radial mesh and initial guess for temperature distribution
+    r_mesh = np.linspace(r_in, r_in + s_w, 50)
+    T_guess = np.zeros((2, r_mesh.size))  # Initial guess (constant temperature)
+
+    # Solve the BVP
+    solution = solve_bvp(heat_eqn, bc, r_mesh, T_guess)
+
+    # Check if the solution converged
+    if solution.success:
+        print("BVP solution converged")
+    else:
+        print("BVP solution did not converge")
+
+    # Return the solution for plotting
+    return solution
+
+
+#####################################################################################################################################
+################################################# Tubular reactor resolution ########################################################
+#####################################################################################################################################
+
+
+def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R1,e_w, lambda_s,e_s,tau,p_h,c_h,n_h,s_h,s_w):
 
     omega = y[0:5]
     T =     y[5]
@@ -113,10 +161,15 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     DynVis  = sum(dynamic_viscosity_array)                                                  # Dynamic viscosity [kg/m/s]
 
     Pr = Cpmix*DynVis/lambda_gas                                                            # Prandtl number
-    Re = RhoGas * u * Dp / DynVis                                                        # Reynolds number []
+    Re = RhoGas * u * Dp / DynVis                                                           # Reynolds number []
 
-    #h_t = K_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K]
-    h_t = 833.77    # Pantoleontos
+    #Pr_f = Cpmix_f*DynVis_f/lambda_f                                                            # Prandtl number
+    #Re_f = RhoGas_f * u_f * D_f / DynVis_f                                                           # Reynolds number []
+
+    #h_t = 0.4*lambda_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K] from Nandasana paper 2003
+    h_t = lambda_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                            # Convective coefficient tube side [W/m2/K] from Pantoleontos 2012
+    #h_f = lambda_f/Dh*(0.023*(Re_f)**0.8*Pr_f**0.3)                                                     # Convenctive coefficient furnace side [W/m2/K] (Dittus-Boeleter's equation)
+    h_f = 833.77    # guess 
 
     # Overall transfer coefficient in packed beds, Dixon 1996 
     eps = 0.9198/((dTube/Dp)**2) + 0.3414
@@ -167,7 +220,6 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     ###########################################################################################################
     ######################################## Particle balance #################################################
     ###########################################################################################################
-
     Dmi = np.zeros(n_comp); Dij = np.identity(n_comp); Dki = np.zeros((n_comp))
     k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
                     # CH4,   CO,    CO2,   H2,  H2O,  O2,  N2
@@ -219,7 +271,8 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     Deff_list.append(Deff_CH4)
 
  
-    ##### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #########
+    ######################################### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #######################################
+
     # Catalyst parameters Dp (catalyst diameter); p_h (pellet height); c_h (central hole diameter); n_h (number of side holes); s_h (side holes diameter)
 
     A_c = np.multiply(np.array([5.22389,0.39393,5.48814]),1e-1)
@@ -243,9 +296,29 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
 
     Eta_list.append(Eta)
 
-    #Eta = 0.1
-#####################################################################
-# Equations
+    ############################################### Radial Tube temperature distribution #################################################################################
+
+    # Create a radial mesh and initial guess for temperature distribution
+    r_in = dTube/2                                                                  # tube internal radius [m]
+    delta_z =  np.linspace(0,Length,N)                                                                     # lenght of each control volume element [m]
+    epsilon_w = 0.85            # wall emissivity 
+    epsilon_f = 0.3758          # furnace emissivity
+    T_f = Twin
+    s_k_boltz = 5.66961e-8      #Stefan Boltzmann constant  [Jm2/K/s]
+    # Solve the BVP
+    # Solve the BVP using the wrapper function
+    solution = solve_heat_bvp(h_t, r_in, delta_z, T, epsilon_w, epsilon_f, s_k_boltz, h_f, T_f, s_w)
+
+    # Plot the results
+    if solution.success:
+        r_sol = solution.x
+        T_sol = solution.y[0]
+
+    Tw = T_sol
+
+#################################################################################################################################################
+################################################################## Equations#####################################################################
+
     Reactor1 = Aint / (m_gas*3600) * MW[0] * np.sum(np.multiply(nu[:, 0], np.multiply(Eta, rj)))
     Reactor2 = Aint / (m_gas*3600) * MW[1] * np.sum(np.multiply(nu[:, 1], np.multiply(Eta, rj)))
     Reactor3 = Aint / (m_gas*3600) * MW[2] * np.sum(np.multiply(nu[:, 2], np.multiply(Eta, rj)))
@@ -255,32 +328,35 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     term_0 = np.sum(np.multiply(DH_reaction, np.multiply(Eta,rj)))
     term_1 = - Aint/ ((m_gas*3600)*Cpmix) * term_0
     term_2 = (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
-    Reactor6 =  term_1 + term_2
-
+    # thermal axial diffusion 
+    #term_3 = 
+    Reactor6 =  term_1 + term_2 #+ term_3
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis * u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
+    
+    #Reactor8 = 
     
     return np.array([Reactor1, Reactor2, Reactor3, Reactor4, Reactor5, Reactor6, Reactor7])
 
 
-#######################################################################
-# INPUT DATA FIRST REACTOR
-n_comp = 5; 
+######################################################################################################################################################
+# INPUT DATA REACTOR
+n_comp = 5;                                 # total number of species
 nu = np.array([ [-1, 1, 0, 3, -1],
                 [0, -1, 1, 1, -1], 
-                [-1, 0, 1, 4, -2]])  # SMR, WGS, reverse methanation
+                [-1, 0, 1, 4, -2]])         # SMR, WGS, reverse methanation stoichiometric coefficients
 
 # Components  [CH4, CO, CO2, H2, H2O] O2, N2]
 MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528 ]) #, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
 Tc = np.array([-82.6, -140.3, 31.2, -240, 374]) + 273.15            # Critical Temperatures [K]
 Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical Pressures [bar]
-# Reactor Design Pantoleontos
 
 # Data from FAT experimental setup 
-Nt =   4                                                                                   # Number of tubes
+Nt =   4                                                                                    # Number of tubes
 #dTube = 0.1
-dTube = 0.14142                                                                              # Tube diameter [m]
-dTube_out = dTube+0.06                                                                          # Tube outlet diameter [m]
-Length = 2                                                                                 # Length of the reactor [m]
+dTube = 0.14142                                                                             # Tube diameter [m]
+s_w = 0.06                                                                                  # Tube thickness
+dTube_out = dTube+s_w                                                                       # Tube outlet diameter [m]
+Length = 2                                                                                  # Length of the reactor [m]
 
 # Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
@@ -346,11 +422,10 @@ zspan = np.array([0,Length])
 N = 100                                             # Discretization
 z = np.linspace(0,Length,N)
 # Tw = 1000.4 + 12.145*z + 0.011*z**2
-Tw = 9500+273.15 # K
 y0_R1  = np.concatenate([omegain_R1, [Tin_R1], [Pin_R1]])
 
 sol = solve_ivp(TubularReactor, zspan, y0_R1, t_eval=z,
-                 args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h))
+                 args=(Epsilon, Dp, m_R1, Aint, MW, nu, R, dTube, Twin, RhoC, DHreact, Tc, Pc, F_R1, e_w, lambda_s,e_s,tau, p_h,c_h,n_h,s_h,s_w))
 
 wi_out = np.zeros( (5,np.size(sol.y[0])) )
 wi_out = sol.y[0:5]                              
@@ -395,21 +470,21 @@ ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
 ax3.set_xlabel('Reactor Lenght [m]'); ax3.set_ylabel('P [bar]')
 ax3.plot(z,P_R1)
 
-plt.figure()
-Eta_list = np.array(Eta_list)
-z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
-plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
-plt.plot(z1,Eta_list[:,0],label=r'$\eta1$');
-plt.plot(z1,Eta_list[:,1],label=r'$\eta2$');
-plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
-plt.legend()
+# plt.figure()
+# Eta_list = np.array(Eta_list)
+# z1 = np.linspace(0,Length,np.size(Eta_list[:,0]))
+# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion efficiency')
+# plt.plot(z1,Eta_list[:,0],label=r'$\eta1$');
+# plt.plot(z1,Eta_list[:,1],label=r'$\eta2$');
+# plt.plot(z1,Eta_list[:,2],label=r'$\eta3$')
+# plt.legend()
 
-plt.figure()
-Deff_list = np.array(Deff_list)
-z1 = np.linspace(0,Length,np.size(Deff_list))
-plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion coefficient [m2/s]')
-plt.plot(z1,Deff_list,label='CH4')
-plt.legend()
+# plt.figure()
+# Deff_list = np.array(Deff_list)
+# z1 = np.linspace(0,Length,np.size(Deff_list))
+# plt.xlabel('Reactor Lenght [m]'), plt.ylabel('diffusion coefficient [m2/s]')
+# plt.plot(z1,Deff_list,label='CH4')
+# plt.legend()
 
 # plt.figure()
 # kr_list = np.array(kr_list)
