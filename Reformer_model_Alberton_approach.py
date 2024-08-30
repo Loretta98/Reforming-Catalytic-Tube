@@ -46,7 +46,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     
     DH_reaction,Cpmix = calculate_DH_reaction(T, MW, omega, DHreact, nu) #J/kmol
     Deff = calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R)
-    U, h_t, h_f, lambda_gas, DynVis = calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,dTube,e_w,Epsilon,lambda_s,dTube_out)# J/m2/s/K = W/m2/K
+    U, h_t, h_f, lambda_gas, DynVis, lambda_ax = calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,dTube,e_w,Epsilon,lambda_s,dTube_out)# J/m2/s/K = W/m2/K
     rj, kr = calculate_kinetics(T, R, Pi,RhoC,Epsilon)
     Eta = calculate_effectiveness_factor(kr,Dp,c_h,n_h,s_h,lambda_gas,Deff,p_h)
 
@@ -106,7 +106,7 @@ def TubularReactor(z,y,Epsilon,Dp,m_gas,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,
     term_1 = - Aint/ ((m_gas*3600)*Cpmix) * term_0
     term_2 = (np.pi*dTube/(m_gas*Cpmix))*U*(Tw - T)
     # thermal axial diffusion 
-    #term_3 = 
+    #term_3 =  Epsilon*lambda_ax*dTdz
     Reactor6 =  term_1 + term_2 #+ term_3
     Reactor7 = ( (-150 * (((1-Epsilon)**2)/(Epsilon**3)) * DynVis * u/ (Dp**2) - (1.75* ((1-Epsilon)/(Epsilon**3)) * m_gas*u/(Dp*Aint))  ) ) / 1e5
     

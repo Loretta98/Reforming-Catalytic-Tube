@@ -110,11 +110,14 @@ def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,
     aru = (0.8171*(T/1000)**3) / (1+(eps/(1-eps))*(1-e_w)/e_w)
     lamba_er_o = Epsilon*(lambda_gas+0.95*aru*Dp)+0.95*(1-Epsilon)/(2/(3*lambda_s)+1/(10*lambda_gas+ars*Dp))
     lambda_er = lamba_er_o+0.11*lambda_gas*Re*Pr**(1/3)/(1+46*(Dp/dTube_out)**2)            # effective radial conductivity [W/m/K]
+    delta = 0.75 
+    lambda0= Epsilon+(1-Epsilon)/(0.139*Epsilon-0.039+(2*lambda_gas/3*lambda_s))
+    lambda_ax = lambda_gas*(lambda0+Pr*Re*delta)
     Bi = aw*dTube_out/2/lambda_er
     U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))                                 # J/m2/s/K = W/m2/K
     
     h_t = aw
-    return U,h_t,h_f,lambda_gas,DynVis
+    return U,h_t,h_f,lambda_gas,DynVis,lambda_ax
 
 def calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R):
 
@@ -167,7 +170,12 @@ def calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R):
     Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
     Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))                        # Effective diffusion [cm2/s]
     
-    return Deff 
+    # The properties of gases and liquids
+    a = 0.78 
+    b = 0.54 
+    c = 9.2
+    #Dax = a*Dm+(b*u*Dp/Epsilon)/(1+(c*Dm)/(u*Dp/Epsilon))
+    return Deff#,Dax
 
 def calculate_effectiveness_factor(kr,Dp,c_h,n_h,s_h,lambda_gas,Deff,p_h):
     ######################################### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #######################################
