@@ -1,13 +1,13 @@
 import numpy as np
 
-def calculate_DH_reaction(T, MW, omega, DHreact, nu):
+def calculate_DH_reaction(T, MW, omega, DHreact, nu, omega_f):
 
-    # Shomate Equation coefficients for CH4, CO, CO2, H2, H2O
-    c1 = np.array([-0.7030298, 25.56759,  24.99735, 33.066178 , 30.09 ])
-    c2 = np.array([108.4773,   6.096130,  55.18696, -11.363417, 6.832514])/1000
-    c3 = np.array([-42.52157,  4.054656, -33.69137, 11.432816 ,  6.793435])/1e6
-    c4 = np.array([5.862788, -2.671301,   7.948387, -2.772874 ,  -2.534480])/1e9
-    c5 = np.array([0.678565,  0.131021,  -0.136638, -0.158558 , 0.082139])*1e6
+    # Shomate Equation coefficients for CH4, CO, CO2, H2, H2O, O2, N2
+    c1 = np.array([-0.7030298, 25.56759,  24.99735, 33.066178 , 30.09, 30.03235, 19.50583 ])
+    c2 = np.array([108.4773,   6.096130,  55.18696, -11.363417, 6.832514, 8.72972,19.88705])/1000
+    c3 = np.array([-42.52157,  4.054656, -33.69137, 11.432816 ,  6.793435, -3.988133, -8.59853])/1e6
+    c4 = np.array([5.862788, -2.671301,   7.948387, -2.772874 ,  -2.534480, 0.788313, 1.369784])/1e9
+    c5 = np.array([0.678565,  0.131021,  -0.136638, -0.158558 , 0.082139, -0.74159, 0.527601])*1e6
 
     # Calculate molar specific heat per component [J/molK]
     Cp_mol = c1 + c2*T + c3*T**2 + c4*T**3 + c5/T**2
@@ -15,48 +15,44 @@ def calculate_DH_reaction(T, MW, omega, DHreact, nu):
     # Calculate mass specific heat per component [J/kgK]
     Cp = Cp_mol/MW*1000
 
-    # Calculate mass specific heat of the mixture [J/kgK]
-    Cpmix = np.sum(Cp * omega)
+    # Calculate mass specific heat of the  reacting mixture [J/kgK]
+    Cpmix = np.sum(Cp[:-2] * omega)
+    Cpmix_f  = np.sum(Cp * omega_f)
 
     # Calculate the enthalpy of the reaction at the gas temperature [J/mol]
     DH_reaction = DHreact*1000 + np.sum(nu * (
-        c1 * (T - 298) + 
-        c2 * (T**2 - 298**2) / 2 + 
-        c3 * (T**3 - 298**3) / 3 + 
-        c4 * (T**4 - 298**4) / 4 - 
-        c5 * (1/T - 1/298)), 1)
+        c1[:-2] * (T - 298) +
+        c2[:-2] * (T**2 - 298**2) / 2 +
+        c3[:-2] * (T**3 - 298**3) / 3 +
+        c4[:-2] * (T**4 - 298**4) / 4 -
+        c5[:-2] * (1/T - 1/298)), 1)
 
     # Convert to J/kmol
     DH_reaction = DH_reaction * 1000
 
-    return DH_reaction,Cpmix
+    return DH_reaction,Cpmix,Cpmix_f
 
+def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,Cpmix_f,RhoGas,RhoGas_f,u,Dp,dTube,e_w,Epsilon,lambda_s,dTube_out,u_f,D_h,x_f,Tf): 
 
-def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,dTube,e_w,Epsilon,lambda_s,dTube_out): 
-
-   # Viscosity coefficients from Yaws
-                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
-    A = np.array([3.844,         35.086,        11.336       ,  27.758,          -36.826,    44.224    ,       42.606   ])
-    B = np.array([4.0112e-1,     5.065e-1,      4.99e-1      ,  2.12e-1,         4.29e-1,    5.62e-1   ,       4.75e-1  ])
-    C = np.array([-1.4303e-4,    -1.314e-4,     -1.0876e-4   ,  -3.28e-5,        -1.62e-5,   -1.13e-4  ,       -9.88e-5 ])
 
     # Thermal conductivity coeffiecients from Yaws 
                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
     a = np.array([-0.00935,     0.0015 ,        -0.01183       , 0.03951 ,       0.00053 ,     0.00121  ,      0.00309    ])
     b = np.array([1.4028e-4,    8.2713e-5,      1.0174e-4      ,  4.5918e-4,     4.7093e-5,    8.6157e-5   ,   7.593e-5   ])
     c = np.array([3.318e-8,    -1.9171e-8,     -2.2242e-8   ,  -6.4933e-8,       4.9551e-8,   -1.3346e-8  ,    -1.1014e-8 ])
-
-    # Wassiljewa equation for low-pressure gas viscosity with Mason and Saxena modification 
-    k_i     = a + b*T + c*T**2                                                                      # thermal conductivity of gas [W/m/K]
-    A_matrix = np.identity(n_comp)
-    thermal_conductivity_array = np.zeros(n_comp)
     
     Gamma = 210*(Tc*MW**3/Pc**4)**(1/6)     # reduced inverse thermal conductivity [W/mK]^-1
     Tr = T/Tc
     k = (np.exp(0.0464*Tr)-np.exp(-0.2412*Tr))
     
+    ###################################### Tube side #########################################################################
+    # Wassiljewa equation for low-pressure gas viscosity with Mason and Saxena modification 
+    k_i     = a + b*T + c*T**2                                                                      # thermal conductivity of gas [W/m/K]
+    A_matrix = np.identity(n_comp)
+    thermal_conductivity_array = np.zeros(n_comp)
+
     for i in range(0,n_comp-1):
-        for j in range(i+1,n_comp): 
+        for j in range(i+1,n_comp):
             A_matrix[i,j] = ( 1+ ((Gamma[j]*k[i])/(Gamma[i]*k[j]))**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
             A_matrix[j,i] = (1 + ((Gamma[i] * k[j]) / (Gamma[j] * k[i])) ** (0.5) * (MW[i] / MW[j]) ** (0.25)) ** 2 / (
                         8 * (1 + MW[j] / MW[i]) ** (0.5))
@@ -69,8 +65,37 @@ def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,
 
         num = yi[i]*k_i[i]
         thermal_conductivity_array[i] = num/den 
-    
     lambda_gas   = sum(thermal_conductivity_array)                                                        # Thermal conductivity of the mixture [W/m/K]
+    
+    ##################################### Furnace Side ####################################################################
+    # Wassiljewa equation for low-pressure gas viscosity with Mason and Saxena modification 
+    n_comp = 7
+    k_i     = a + b*Tf + c*Tf**2                                                                      # thermal conductivity of gas [W/m/K]
+    A_matrix = np.identity(n_comp)
+    thermal_conductivity_array = np.zeros(n_comp)
+    
+    for i in range(0,n_comp-1):
+        for j in range(i+1,n_comp):
+            A_matrix[i,j] = ( 1+ ((Gamma[j]*k[i])/(Gamma[i]*k[j]))**(0.5) * (MW[j]/MW[i])**(0.25) )**2 / ( 8*(1 + MW[i]/MW[j])**(0.5) )
+            A_matrix[j,i] = (1 + ((Gamma[i] * k[j]) / (Gamma[j] * k[i])) ** (0.5) * (MW[i] / MW[j]) ** (0.25)) ** 2 / (
+                        8 * (1 + MW[j] / MW[i]) ** (0.5))
+            #A_matrix[j,i] = k_i[j]/k_i[i]*MW[i]/MW[j] * A_matrix[i,j]
+
+    for i in range(0,n_comp):
+        den = 0
+        for j in range(0,n_comp): 
+            den += x_f[j]*A_matrix[j,i]
+
+        num = x_f[i]*k_i[i]
+        thermal_conductivity_array[i] = num/den 
+    lambda_f = sum(thermal_conductivity_array) # Thermal conducvity of the gas in the furnace [W/m/K]
+    
+    n_comp = 5 
+   # Viscosity coefficients from Yaws
+                 # CH4,          CO,             CO2,            H2,              H2O,           O2             N2
+    A = np.array([3.844,         35.086,        11.336       ,  27.758,          -36.826])#,    44.224    ,       42.606   ])
+    B = np.array([4.0112e-1,     5.065e-1,      4.99e-1      ,  2.12e-1,         4.29e-1])#,    5.62e-1   ,       4.75e-1  ])
+    C = np.array([-1.4303e-4,    -1.314e-4,     -1.0876e-4   ,  -3.28e-5,        -1.62e-5])#,   -1.13e-4  ,       -9.88e-5 ])
     # Wilke Method for low-pressure gas viscosity   
     mu_i    = (A + B*T + C*T**2)*1e-7                                                               # viscosity of gas [micropoise]
     PHI = np.identity(n_comp)                                                                       # initialization for PHI calculation
@@ -89,20 +114,28 @@ def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,
         num = yi[i]*mu_i[i]
         dynamic_viscosity_array[i] = num/den 
     
-    DynVis  = sum(dynamic_viscosity_array)                                                  # Dynamic viscosity [kg/m/s]
-
+    DynVis  = sum(dynamic_viscosity_array[:-2])                                                  # Dynamic viscosity [kg/m/s]
+    DynVis_f = sum(dynamic_viscosity_array[-2:])
+    
     Pr = Cpmix*DynVis/lambda_gas                                                            # Prandtl number
-    Re = RhoGas * u * Dp / DynVis                                                           # Reynolds number []
-
-    #Pr_f = Cpmix_f*DynVis_f/lambda_f                                                            # Prandtl number
-    #Re_f = RhoGas_f * u_f * D_f / DynVis_f                                                           # Reynolds number []
+    Re = RhoGas * u * Dp / DynVis                                                           # Reynolds number                                                                            # Schmidt Number 
+    
+    Pr_f = Cpmix_f*DynVis_f/lambda_f                                                            # Prandtl number
+    Re_f = RhoGas_f * u_f * D_h / DynVis_f                                                           # Reynolds number []
 
     #h_t = 0.4*lambda_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                     # Convective coefficient tube side [W/m2/K] from Nandasana paper 2003
     h_t = lambda_gas/Dp*(2.58*Re**(1/3)*Pr**(1/3)+0.094*Re**(0.8)*Pr**(0.4))                            # Convective coefficient tube side [W/m2/K] from Pantoleontos 2012
-    #h_f = lambda_f/Dh*(0.023*(Re_f)**0.8*Pr_f**0.3)                                                     # Convenctive coefficient furnace side [W/m2/K] (Dittus-Boeleter's equation)
-    h_f = 833.77    # guess 
+    h_f = lambda_f/D_h*(0.023*(Re_f)**0.8*Pr_f**0.3)                                                     # Convenctive coefficient furnace side [W/m2/K] (Dittus-Boeleter's equation)
     
+    #h_f = 833.77    # guess 
+    epsilon_w = 0.85            # wall emissivity 
+    epsilon_f = 0.3758          # furnace emissivity
     
+    # Radiative exchange factor 
+    F = 1 / ( 1/epsilon_f+1/epsilon_w-1) # [-]
+    k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
+    s_k_boltz = 5.66961e-8      # Stefan Boltzmann constant  [J/m2/K4/s]
+
     # Overall transfer coefficient in packed beds, Dixon 1996 
     eps = 0.9198/((dTube/Dp)**2) + 0.3414
     aw = (1-1.5*(dTube/Dp)**(-1.5))*(lambda_gas/Dp)*(Re**0.59)*Pr**(1/3)                    # wall thermal transfer coefficient [W/m2/K]
@@ -114,15 +147,21 @@ def calculate_heat_transfer_coefficients(T,MW,n_comp,Tc,Pc,yi,Cpmix,RhoGas,u,Dp,
     lambda0= Epsilon+(1-Epsilon)/(0.139*Epsilon-0.039+(2*lambda_gas/3*lambda_s))
     lambda_ax = lambda_gas*(lambda0+Pr*Re*delta)
     Bi = aw*dTube_out/2/lambda_er
-    U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))                                 # J/m2/s/K = W/m2/K
     
+    U = 1 / ( 1/aw + dTube_out/6/lambda_er)*((Bi+3)/(Bi+4))                                 # J/m2/s/K = W/m2/K
+    Uext =  h_f            # Convective heat exchange coefficient for the external tube wall
+    Urad =  F * s_k_boltz          # Radial heat exchange coefficient with the Furnace
+
     h_t = aw
-    return U,h_t,h_f,lambda_gas,DynVis,lambda_ax
+    
+    return U,h_t,lambda_gas,DynVis,lambda_ax,Re,Uext, Urad,lambda_f
 
-def calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R):
+def calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R,Epsilon,u,Dp,Re):
 
-    Dmi = np.zeros(n_comp); Dij = np.identity(n_comp); Dki = np.zeros((n_comp))
-    k_boltz = 1.380649*1e-23                    # Boltzmann constant m2kg/K/s2
+    ' Calculation of the Diffusivity for the gas inside the tube'
+
+    Dmi = np.zeros(n_comp); Dij = np.identity(n_comp); Dki = np.zeros((n_comp)); Dax = np.zeros(n_comp)
+    
                     # CH4,   CO,    CO2,   H2,  H2O,  O2,  N2
     dip_mom = np.array([0.0, 0.1, 0.0, 0.0, 1.8]) #, 0.0, 0.0]) # dipole moment debyes
     #dip_mom_r = 54.46*dip_mom**2*Pc/Tc**2       # reduced dipole moment by Lucas
@@ -163,19 +202,21 @@ def calculate_diffusivity(T,P,n_comp,yi,MWmix,MW,e_s,tau,R):
         den = 0
         for j in range(0,n_comp):
             den += np.sum(yi[j] / Dij[i,j])
-        Dmi [i] = (1-yi[i])/ den               # Molecular diffusion coefficient for component with Wilke's Equation
-        Dki [i] = 9700 * pore_radius * (T / MW[i]) # Knudsen diffusion [cm2/s]
-
+        Dmi [i] = (1-yi[i])/ den                    # Molecular diffusion coefficient for component with Wilke's Equation
+        Dki [i] = 9700 * pore_radius * (T / MW[i])  # Knudsen diffusion [cm2/s]
+    a = 0.72 
+    b = 0.52    
+    c = 9.0 # Steady State Coefficients
+    Dax[i] = a*Dmi[i] + (b*u*Dp/Epsilon)/(1+(c*Dmi[i])/(u*Dp/Epsilon))      # Axial diffusion Foumeny et al. 1992 [cm2/s]
+    
     pore_diameter = 130 * 1e-8   # pore diameter in cm, average from Xu-Froment II
     Dki = pore_diameter/3*(8*R*T/(MWmix/1e3)/np.pi)**0.5            # Knudsen diffusion [cm2/s]
     Deff = 1 / ( (e_s/tau)* (1/Dmi + 1/Dki))                        # Effective diffusion [cm2/s]
     
-    # The properties of gases and liquids
-    a = 0.78 
-    b = 0.54 
-    c = 9.2
-    #Dax = a*Dm+(b*u*Dp/Epsilon)/(1+(c*Dm)/(u*Dp/Epsilon))
-    return Deff#,Dax
+    # Pe = 1 / (a/Re/Sc+b/(1+c/Re/Sc))
+    # Dax = u*Dp/Pe
+
+    return Deff,Dax
 
 def calculate_effectiveness_factor(kr,Dp,c_h,n_h,s_h,lambda_gas,Deff,p_h):
     ######################################### Effectiveness factors calculation from CFD models, based on the work of Alberton, 2009 #######################################
@@ -202,3 +243,35 @@ def calculate_effectiveness_factor(kr,Dp,c_h,n_h,s_h,lambda_gas,Deff,p_h):
         Eta[i] = alpha[i]*specific_area
 
     return Eta
+
+def Auxiliary_Calc_Tube(xi,f_gas,MW,P,m_gas,F_R1,Aint,Epsilon,R,T):  
+    ########## Aux. Calculations for the Tube 
+    ni = f_gas*xi                                                   # Molar flowrate per tube per component [kg/s tube]
+    mi = np.multiply(xi,MW[:-2])                                    # Mass flowrate per tube per component [kmol/s tube]
+    ntot = np.sum(ni)                                               # Molar flowrate per tube [kmol/s tube]
+    omega = mi / np.sum(mi)
+    Pi = P*xi                                                       # Partial Pressure
+    Ppa = P * 1E5                                                   # Pressure [Pa]
+    #Eta = 0.1                                                      # effectiveness factor (Latham et al., Kumar et al.)
+    MWmix = np.sum(xi*MW[:-2])                                      # Mixture
+    # Estimation of physical properties with ideal mixing rules
+    RhoGas = (Ppa*MWmix) / (R*T)  / 1000                                        # Gas mass density [kg/m3]
+    VolFlow_R1 = m_gas / RhoGas                                                 # Volumetric flow per tube [m3/s]
+    u = (F_R1*1000) * R * T / (Aint*Ppa)                                        # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
+    u = VolFlow_R1 / (Aint * Epsilon)                                           # Gas velocity in the tube [m/s]
+    return u,omega,MWmix,RhoGas,Pi
+
+def Auxiliary_Calc_Furnace(x_f,f_furnace,MW,m_gas,F_R1,Aint,Epsilon,R,T_F):  
+    ########## Aux. Calculations for the Tube 
+    ni_f = f_furnace/3600*x_f                                       # Molar flowrate per component [kg/s]
+    mi_f = np.multiply(x_f,MW)                                      # Mass flowrate per component [kmol/s]
+    ntot = np.sum(ni_f)                                             # Molar flowrate per tube [kmol/s]
+    omega_f = mi_f / np.sum(mi_f)
+    Ppa = 1.01325 * 1E5                                             # Pressure [Pa]
+    MWmix_f = np.sum(x_f*MW)                                        # Mixture
+    # Estimation of physical properties with ideal mixing rules
+    RhoGas_f = (Ppa*MWmix_f) / (R*T_F)  / 1000                                        # Gas mass density [kg/m3]
+    VolFlow_R1 = m_gas / RhoGas_f                                                     # Volumetric flow per tube [m3/s]
+    u_f = (F_R1*1000) * R * T_F / (Aint*Ppa)                                        # Superficial Gas velocity if the tube was empy (Coke at al. 2007)
+    u_f = VolFlow_R1 / (Aint * Epsilon)                                               # Gas velocity in the tube [m/s]
+    return u_f,omega_f,MWmix_f,RhoGas_f
