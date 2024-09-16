@@ -59,7 +59,7 @@ def ReformerUnit(z,y,D,Epsilon,Dp,Aint,MW,nu,R,dTube,Twin,RhoC,DHreact,Tc,Pc,F_R
     Tw_single = Tw  # Wall temperature is a scalar
     Tf_single = Tf  # Fluid temperature is a scalar
 
-    DH_reaction,Cpmix,Cpmix_f = calculate_DH_reaction(T_single, MW, omega, DHreact, nu, omega_f) #J/kmol
+    DH_reaction,Cpmix,Cpmix_f = calculate_DH_reaction(T_single, MW, omega, DHreact, nu, omega_f,n) #J/kmol
     Uint, h_t, lambda_gas, DynVis, lambda_ax, Re, Uext, Ur,lambda_f = calculate_heat_transfer_coefficients(T_single,MW,n_comp,Tc,Pc,xi_single,Cpmix,Cpmix_f,RhoGas,RhoGas_f,u,Dp,dTube,e_w,Epsilon,lambda_s,dTube_out,u_f,D_h,x_f,Tf_single)# J/m2/s/K = W/m2/K
     Deff,Dax = calculate_diffusivity(T_single,P_single,n_comp,xi_single,MWmix,MW,e_s,tau,R,Epsilon,u,Dp,Re)
     rj, kr = calculate_kinetics(T_single, R, Pi,RhoC,Epsilon)

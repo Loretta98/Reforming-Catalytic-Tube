@@ -7,6 +7,9 @@ nu = np.array([ [-1, 1, 0, 3, -1],
                 [0, -1, 1, 1, -1], 
                 [-1, 0, 1, 4, -2]])         # SMR, WGS, reverse methanation stoichiometric coefficients
 
+# Reshape nu to (3, 1, 5) to broadcast with T and the polynomial terms
+#nu = nu[:, np.newaxis, :]
+
 # Components  [CH4, CO, CO2, H2, H2O] O2, N2]
 MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
 Tc = np.array([-82.6, -140.3, 31.2, -240, 374,-118.6,-147]) + 273.15            # Critical Temperatures [K]
@@ -74,9 +77,9 @@ Q = Q0 *A*B/L*(z/L)**(B-1)*np.exp(-A*(z/L)**B)
 #f_IN = 0.00651                                                                                     # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
-Tin_R1 =  785 + 273.15                                                                              # Inlet Temperature [K]
-Tin_f = 120 +273.15
-Tin_w = 785 + 273.15
+Tin_R1 =  700 + 273.15                                                                              # Inlet Temperature [K]
+Tin_f = 950 +273.15
+Tin_w = 600 + 273.15
 Pin_R1 =  15                                                                                        # Inlet Pressure [Bar]
 Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039])            #kmol/h
 
@@ -100,6 +103,8 @@ Aint = np.pi*dTube**2/4                                                         
 # Perry's data 
         # CH4,          CO,             CO2,            H2,              H2O          
 dH_formation_i = np.array([-74.52, -110.53, -393.51, 0, -241.814])                                  # Enthalpy of formation [kJ/mol]       
+
+
 DHreact = np.sum(np.multiply(nu,dH_formation_i),axis=1).transpose()                                 # Enthalpy of reaction              [kJ/mol]
 ################################################################################
 
