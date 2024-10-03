@@ -40,23 +40,64 @@ Deff_list = []
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
 # Components  [CH4, CO, CO2, H2, H2O]
-Tin_R1 =  600+273.15                                                                            # Inlet Temperature [K]
+Tin_R1 =  800+273.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  15                                                                              # Inlet Pressure [Bar]
 #x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
 Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039])    #kmol/h
-
 f_IN = np.sum(Fin)/Nt                                   # inlet molar flow per tube [kmol/h]
 x_in_R1 = np.zeros(n_comp)
 for i in range(0,n_comp):
     x_in_R1[i] = Fin[i]/np.sum(Fin)                     # inlet molar composition
+
+# if measured data is: 0.5 CO2 e 0.5 CH4 in M1, M1 = 24 kg/h and M2 = 47.8 kg/h  all water
+# Mtot = 71.8 kg/h 
+# [CH4, CO, CO2, H2, H2O] O2, N2]
+M1 = 23.85; M2 = 47.855              #kg/h 
+# Mole fractions in stream M1
+x_M1_CH4 = 0.54
+x_M1_CO2 = 0.46
+# Calculate molar flow rates (kmol/h) for M1 and M2
+F1 = M1 / (x_M1_CH4 * MW[0] + x_M1_CO2 * MW[2])  # CH4 and CO2 in M1
+F2 = M2 / MW[4]  # All H2O in M2
+
+# Total molar flow rate (kmol/h)
+F3 = F1 + F2
+
+# Mole fractions at the inlet
+x_in_CH4 = (F1 * x_M1_CH4) / F3
+x_in_CO2 = (F1 * x_M1_CO2) / F3
+x_in_H2O = F2 / F3
+
+# Mole fraction vector for all species: [CH4, CO, CO2, H2, H2O}
+x_in = np.zeros(5)
+x_in[0] = x_in_CH4  # CH4
+x_in[1] = 0.00001
+x_in[2] = x_in_CO2  # CO2
+x_in[3] = 0.00001
+x_in[4] = x_in_H2O  # H2O
+
+# Output the mole fractions of the inlet stream
+print("Mole fraction of CH4 at the inlet:", x_in[0])
+print("Mole fraction of CO2 at the inlet:", x_in[2])
+print("Mole fraction of H2O at the inlet:", x_in[4])
+
+f_IN = F3/Nt
+x_in_R1 = x_in
+# x_in_R1 = np.array([0.1488, 0.00001, 0.0992, 0.00001,0.7520])
+# x_in_R1 = np.array([0.1313, 0.00001, 0.1074, 0.00001,0.7613])
+
+Fin = F3*x_in_R1
+print('Min = ', M1+M2)
 MWmix = np.sum(x_in_R1*MW)
 w_in = x_in_R1*MW / MWmix
 m_R1 = f_IN*np.sum(np.multiply(x_in_R1,MW))/3600             # Inlet mass flow [kg/s]
+
 f_IN_i = x_in_R1*f_IN                                       # inlet flowrate per tube
+
 omegain_R1 = w_in                                                              # Inlet mass composition
                                                     
 SC = x_in_R1[4] / x_in_R1[0]        # the steam to carbon was calculated upon the total amount of carbon, not only methane
-
+print('Steam to Carbon ratio=', SC)
 # Thermodynamic Data
 R = 8.314                                                                               # [J/molK]
 ################################################################################

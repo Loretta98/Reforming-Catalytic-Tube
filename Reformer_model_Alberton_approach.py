@@ -103,7 +103,12 @@ P_R1 = sol.y[6]
 # CH4,          CO,             CO2,            H2,              H2O
 Fi_out = np.zeros((n_comp,np.size(wi_out[0])))
 F_tot_out = np.zeros(np.size(wi_out[0])); yi = np.zeros(np.size(wi_out[0]))
-Mi_out = m_R1 * wi_out                                        # Mass flowrate per component [kg/h]
+print('m_R1 = ',m_R1*3600*Nt)
+Mi_out = m_R1 * wi_out                                     # Mass flowrate per component [kg/s]
+print('composizione', np.sum(wi_out[:,-1]))
+Mout = np.sum(Mi_out)*3600*Nt
+print('Mout = ', Mout)
+print('Total Water at the outlet', Mi_out[4,-1]*3600*Nt)
 for i in range(0,n_comp):
     Fi_out[i] = Mi_out[i,:]/MW[i]                                     # Molar flowrate per component [kmol/h]
 for j in range(0,np.size(wi_out[0])):
@@ -111,4 +116,11 @@ for j in range(0,np.size(wi_out[0])):
 yi = Fi_out/F_tot_out                                                           # outlet Molar fraction to separator
 # MWmix_f1 = np.sum(np.multiply(zi_f1,MW))                                # Mixture molecular weight
 #F_f1 = M_R1/MWmix_f1*3600                                                # Outlet Molar flowrate [kmol/h]
-
+print('Outlet Wet composition', yi[:,-1])
+Fi_out_ = np.zeros((n_comp-1,np.size(wi_out[0])))
+for i in range(0,n_comp-1):
+    Fi_out_[i] = Mi_out[i,:]/MW[i]                                     # Molar flowrate per component [kmol/h]
+for j in range(0,np.size(wi_out[0])):
+    F_tot_out[j] = np.sum(Fi_out_[:,j])                                              # Molar flowrate [kmol/h]
+yi_ = Fi_out_ / F_tot_out
+print('Outlet Dry composition', yi_[:,-1])

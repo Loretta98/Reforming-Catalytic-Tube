@@ -17,10 +17,15 @@ ax1.set_xlabel('Reator Lenght [m]'); ax1.set_ylabel('T [K]')
 ax1.legend(['Tg','Tf'])
 ax1.plot(z,T_R1,z,Tw)
 
+# ax2.set_xlabel('Reator Lenght [m]'); ax2.set_ylabel('Molar Fraction')
+# for i in range(0,n_comp):
+#     ax2.plot(z, yi[i])
+# ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
+
 ax2.set_xlabel('Reator Lenght [m]'); ax2.set_ylabel('Molar Fraction')
-for i in range(0,n_comp):
-    ax2.plot(z, yi[i])
-ax2.legend(['CH4', 'C0','CO2', 'H2','H2O'])
+for i in range(0,n_comp-1):
+    ax2.plot(z, yi_[i])
+ax2.legend(['CH4', 'C0','CO2', 'H2'])
 
 ax3.set_xlabel('Reactor Lenght [m]'); ax3.set_ylabel('P [bar]')
 ax3.plot(z,P_R1)
