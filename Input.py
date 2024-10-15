@@ -10,6 +10,13 @@ nu = np.array([ [-1, 1, 0, 3, -1],
 MW = np.array([16.04, 28.01, 44.01, 2.016, 18.01528 ]) #, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
 Tc = np.array([-82.6, -140.3, 31.2, -240, 374]) + 273.15            # Critical Temperatures [K]
 Pc = np.array([46.5, 35, 73.8, 13, 220.5])                          # Critical Pressures [bar]
+
+# Components  [CH4, CO, CO2, H2, H2O] O2, N2]
+MW_f = np.array([16.04, 28.01, 44.01, 2.016, 18.01528, 32.00, 28.01])                    # Molecular Molar weight       [kg/kmol]
+Tc_f = np.array([-82.6, -140.3, 31.2, -240, 374,-118.6,-147]) + 273.15            # Critical Temperatures [K]
+Pc_f = np.array([46.5, 35, 73.8, 13, 220.5,50.5,34])                          # Critical Pressures [bar]
+
+
 # Reactor Design Pantoleontos
 
 # Data from FAT experimental setup 
@@ -18,7 +25,7 @@ Nt =   4                                                                        
 dTube = 0.14142                                                                              # Tube diameter [m]
 dTube_out = dTube+0.06                                                                          # Tube outlet diameter [m]
 Length = 2                                                                                 # Length of the reactor [m]
-
+s_w = 0.03
 # Catalyst particle data
 Epsilon = 0.519                                                                             # Void Fraction 
 RhoC = 2355.2                                                                               # Catalyst density [kg/m3]
@@ -30,18 +37,44 @@ n_h = 0                                                                         
 s_h = 0                                                                                     # side holes diameter [m]
 tau = 3.54                                                                                  # Tortuosity 
 e_s = 0.25                                                                                  # porosity of the catalyst particle [m3void/ m3cat] --> Tacchino
-e_w = 0.8                                                                                   # emissivity of tube 
+e_w = 0.85                                                                                  # emissivity of tube from Quirino
+e_f = 0.3758                                                                                # emissitivty of the furnace from Quirino
 lambda_s = 0.3489                                                                           # thermal conductivity of the solid [W/m/K]
-Twin = 850+273.15                                                                         # Tube wall temperature [K]
+sigma = 5.67e-8 # Stefan Boltzmann constan [W/m2/K4] 
+k_w = 28.5 # tube thermal conductivity [W/mK]
+p = dTube_out*(1+1)                                     # Tubes pitch [m]
+D_h =  (dTube+s_w*2)*(4/np.pi*(p/(dTube/2+s_w)-1))    # Hydraulic Diameter [m]
 Eta_list = []
 kr_list = []
 Deff_list = []
+Tw_list = []
 # Input Streams Definition - Pantoleontos Data                                                                                
 #f_IN = 0.00651                                                                               # input molar flowrate (kmol/s)
 
+
+# Furnace data 
+f_biogas = 30                           # Nm3/h Biogas available as fuel 
+f_biogas = 30/22.41                     # kmol/h
+excess = 0
+f_air = ((f_biogas*0.6)*2)/0.21*(1+excess)  # Ratio of air for stochiometric combustion with a 5% excess of air
+f_furnace = f_biogas + f_air            # kmol/h  
+# [CH4, CO, CO2, H2, H2O, O2,N2]
+x_f = np.array([0.093, 0.062, 0, 0, 0, 0.178, 0.667])   # composition at the inlet 
+x_f = np.array([0, 0.06, 0.11, 0, 0.13, 0, 0.7])        # composition of the exhaust gas
+p = dTube_out*(1+1)                                     # Tubes pitch [m]
+D_h =  (dTube+s_w*2)*(4/np.pi*(p/(dTube/2+s_w)-1))    # Hydraulic Diameter [m]
+A_f = 2*2- dTube_out**2/4*np.pi*Nt  # tranversal area of the furnace [m2] L = 2, W = 2 metri come guess
+m_furnace = np.sum(np.multiply(f_furnace,np.multiply(x_f,MW_f))) # kg/h
+
+
 # Components  [CH4, CO, CO2, H2, H2O]
-Tin_R1 =  800+273.15                                                                            # Inlet Temperature [K]
+
+#### INLET FROM REAL DATA !!!! ####
+Twin = 600+273.15                                                                         # Tube wall temperature [K]
+Tf = 900+273.15
+Tin_R1 =  600+273.15                                                                            # Inlet Temperature [K]
 Pin_R1 =  15                                                                              # Inlet Pressure [Bar]
+
 #x_in_R1 = np.array([0.22155701, 0.00, 0.01242592, 0.02248117, 0.74353591 ])                              # Inlet molar composition
 Fin = np.array([0.5439,0.0001,0.3461,0.0001,2.7039])    #kmol/h
 f_IN = np.sum(Fin)/Nt                                   # inlet molar flow per tube [kmol/h]
@@ -54,8 +87,8 @@ for i in range(0,n_comp):
 # [CH4, CO, CO2, H2, H2O] O2, N2]
 M1 = 23.85; M2 = 47.855              #kg/h 
 # Mole fractions in stream M1
-x_M1_CH4 = 0.54
-x_M1_CO2 = 0.46
+x_M1_CH4 =0.57
+x_M1_CO2 = 0.43
 # Calculate molar flow rates (kmol/h) for M1 and M2
 F1 = M1 / (x_M1_CH4 * MW[0] + x_M1_CO2 * MW[2])  # CH4 and CO2 in M1
 F2 = M2 / MW[4]  # All H2O in M2
